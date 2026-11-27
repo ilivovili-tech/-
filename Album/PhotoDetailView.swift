@@ -283,7 +283,7 @@ private struct PhotoDetailImageView: View {
             }
         }
 
-        let longestSide = max(CGFloat(asset.pixelWidth), CGFloat(asset.pixelHeight), 1)
+        let longestSide = max(max(CGFloat(asset.pixelWidth), CGFloat(asset.pixelHeight)), 1)
         let scale = min(1, 4096 / longestSide)
         let targetSize = CGSize(
             width: max(1, CGFloat(asset.pixelWidth) * scale),
