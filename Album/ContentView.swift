@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var showYearbook = false
     @State private var showPhotoDetail = false
     @State private var activePhoto: PHAsset?
+    @State private var pendingAlbumPhoto: PHAsset?
     @State private var showCreateAlbum = false
     @State private var showAlbumDetail = false
     @State private var selectedAlbum: PHAssetCollection?
@@ -78,9 +79,24 @@ struct ContentView: View {
         .sheet(isPresented: $showCreateAlbum) {
             CreateAlbumView().environmentObject(library)
         }
-        .sheet(isPresented: $showAlbumDetail) {
+        .sheet(isPresented: $showAlbumDetail, onDismiss: {
+            // Wait until the album sheet has fully dismissed before presenting
+            // the photo viewer from the root view. This avoids nested modal
+            // presentations, which caused the blank photo screen on device.
+            if let photo = pendingAlbumPhoto {
+                pendingAlbumPhoto = nil
+                activePhoto = photo
+                DispatchQueue.main.async {
+                    showPhotoDetail = true
+                }
+            }
+        }) {
             if let selectedAlbum {
-                AlbumDetailView(album: selectedAlbum).environmentObject(library)
+                AlbumDetailView(album: selectedAlbum) { asset in
+                    pendingAlbumPhoto = asset
+                    showAlbumDetail = false
+                }
+                .environmentObject(library)
             }
         }
         .alert("删除这张照片？", isPresented: $showDeleteConfirmation) {
