@@ -352,17 +352,6 @@ struct ContentView: View {
         }
     }
 
-    private func statCard(title: String, value: String, icon: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value).font(.system(size: 20, weight: .bold, design: .serif))
-                Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            Spacer()
-        }.padding(15).frame(maxWidth: .infinity).background(.white.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
-    }
-
     private func emptyState(_ title: String, subtitle: String, icon: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: icon).font(.system(size: 35, weight: .light)).foregroundStyle(.secondary)
