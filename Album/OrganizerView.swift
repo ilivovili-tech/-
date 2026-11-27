@@ -122,13 +122,16 @@ struct OrganizerView: View {
                                 }
                             }
                             .buttonStyle(.plain)
-                            .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in toggle(asset) })
+                            .highPriorityGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in toggle(asset) })
                         }
                     }
                     .padding(.horizontal, 6)
                     .padding(.bottom, 20)
                 }
             }
+        }
+        .onChange(of: library.assets.map(\.localIdentifier)) { _, identifiers in
+            selectedIDs.formIntersection(Set(identifiers))
         }
         .sheet(isPresented: $showDetail) {
             if let activeAsset {
