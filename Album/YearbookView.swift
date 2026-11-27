@@ -98,10 +98,7 @@ struct YearbookView: View {
 
     @ViewBuilder
     private func monthPage(_ month: Int) -> some View {
-        let items = yearAssets.filter {
-            guard let date = $0.creationDate else { return false }
-            return Calendar.current.component(.month, from: date) == month
-        }
+        let items = library.assets(in: year, month: month)
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .lastTextBaseline) {
