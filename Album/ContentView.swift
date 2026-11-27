@@ -65,8 +65,10 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(ink)
         .task { library.refresh() }
-        .sheet(isPresented: $showYearbook) {
-            YearbookView(year: selectedYear).environmentObject(library)
+        .fullScreenCover(isPresented: $showYearbook) {
+            YearbookView(year: selectedYear)
+                .environmentObject(library)
+                .ignoresSafeArea(edges: .all)
         }
         .sheet(isPresented: $showPhotoDetail) {
             if let activePhoto {
