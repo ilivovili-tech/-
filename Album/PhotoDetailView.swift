@@ -5,6 +5,7 @@ struct PhotoDetailView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
     @Environment(\.dismiss) private var dismiss
     let asset: PHAsset
+    @State private var feedbackMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -32,7 +33,30 @@ struct PhotoDetailView: View {
                 .padding(.horizontal, 14)
             }
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .alert("相簿操作", isPresented: Binding(get: { feedbackMessage != nil }, set: { if !$0 { feedbackMessage = nil } })) { Button("好", role: .cancel) { feedbackMessage = nil } } message: { Text(feedbackMessage ?? "") }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        if library.albums.isEmpty {
+                            Text("请先在“相册”页面创建相簿")
+                        } else {
+                            ForEach(library.albums, id: \.localIdentifier) { album in
+                                Button(album.localizedTitle ?? "未命名相簿") {
+                                    Task {
+                                        do {
+                                            try await library.add(asset, to: album)
+                                            feedbackMessage = "已添加到 \(album.localizedTitle ?? "相簿")"
+                                        } catch {
+                                            feedbackMessage = "添加失败：\(error.localizedDescription)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "folder.badge.plus").foregroundStyle(.white)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }.foregroundStyle(.white)
                 }
