@@ -58,9 +58,12 @@ struct YearbookView: View {
                             )
                             .shadow(color: .black.opacity(abs(pageRotation) / 700), radius: 12, x: 0, y: 5)
                             .contentShape(Rectangle())
-                            .gesture(
+                            .simultaneousGesture(
                                 DragGesture(minimumDistance: 25)
                                     .onEnded { value in
+                                        let horizontal = abs(value.translation.width)
+                                        let vertical = abs(value.translation.height)
+                                        guard horizontal > vertical * 1.25 else { return }
                                         if value.translation.width < -45 { turnPage(1) }
                                         else if value.translation.width > 45 { turnPage(-1) }
                                     }
