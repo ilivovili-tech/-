@@ -13,6 +13,7 @@ struct PhotoDetailView: View {
     @State private var livePhotoLoadingFailed = false
     @State private var isPressingLivePhoto = false
     @State private var livePhotoLoaded = false
+    @State private var livePhotoAttempt = 0
     @State private var videoRequestID: PHImageRequestID = PHInvalidImageRequestID
 
     private var isLivePhoto: Bool {
@@ -45,7 +46,7 @@ struct PhotoDetailView: View {
                                 }, onFailure: {
                                     livePhotoLoadingFailed = true
                                 })
-                                .id(asset.localIdentifier)
+                                .id("\(asset.localIdentifier)-\(livePhotoAttempt)")
                                 // Playback is controlled by the SwiftUI press gesture below.
                                 .allowsHitTesting(false)
 
@@ -83,6 +84,7 @@ struct PhotoDetailView: View {
                                 Button {
                                     livePhotoLoaded = false
                                     livePhotoLoadingFailed = false
+                                    livePhotoAttempt += 1
                                     isPressingLivePhoto = false
                                 } label: {
                                     Label("重新加载实况", systemImage: "livephoto")
@@ -180,14 +182,13 @@ struct PhotoDetailView: View {
 
 
 
-/// Two-stage PhotoKit viewer: a fast local preview is displayed first,
-/// then replaced by the high-quality/iCloud image when it arrives.
+/// PhotoKit viewer with a single opportunistic request.
+/// PhotoKit can deliver a quick preview first and the final/iCloud rendition later.
 private struct PhotoDetailImageView: View {
     let asset: PHAsset
     @State private var image: UIImage?
     @State private var failed = false
-    @State private var previewRequestID: PHImageRequestID = PHInvalidImageRequestID
-    @State private var finalRequestID: PHImageRequestID = PHInvalidImageRequestID
+    @State private var requestID: PHImageRequestID = PHInvalidImageRequestID
     @State private var requestToken = UUID()
     @State private var receivedFinalImage = false
 
@@ -207,7 +208,7 @@ private struct PhotoDetailImageView: View {
                             .font(.system(size: 32, weight: .light))
                         Text("照片加载失败")
                             .font(.system(size: 16, weight: .medium))
-                        Text("原片可能尚未从 iCloud 下载，请检查网络后重试。")
+                        Text("请检查照片访问权限和网络连接，然后重试。")
                             .font(.system(size: 12))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.7))
@@ -240,40 +241,13 @@ private struct PhotoDetailImageView: View {
         failed = false
         receivedFinalImage = false
         let token = requestToken
-        let manager = PHImageManager.default()
 
-        // First request a small, local preview. This avoids an empty viewer while
-        // the original file is being fetched from iCloud.
-        let previewOptions = PHImageRequestOptions()
-        previewOptions.deliveryMode = .fastFormat
-        previewOptions.resizeMode = .fast
-        previewOptions.isNetworkAccessAllowed = false
-        previewOptions.version = .current
-
-        previewRequestID = manager.requestImage(
-            for: asset,
-            targetSize: CGSize(width: 1200, height: 1200),
-            contentMode: .aspectFit,
-            options: previewOptions
-        ) { result, info in
-            DispatchQueue.main.async {
-                guard token == requestToken,
-                      (info?[PHImageCancelledKey] as? Bool) != true,
-                      !receivedFinalImage else { return }
-                if let result {
-                    image = result
-                    failed = false
-                }
-            }
-        }
-
-        // Then request the best available rendition, allowing iCloud download.
-        let finalOptions = PHImageRequestOptions()
-        finalOptions.deliveryMode = .highQualityFormat
-        finalOptions.resizeMode = .fast
-        finalOptions.isNetworkAccessAllowed = true
-        finalOptions.version = .current
-        finalOptions.progressHandler = { _, error, _, _ in
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .opportunistic
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
+        options.version = .current
+        options.progressHandler = { _, error, _, _ in
             guard error == nil else {
                 DispatchQueue.main.async {
                     guard token == requestToken, image == nil else { return }
@@ -284,17 +258,17 @@ private struct PhotoDetailImageView: View {
         }
 
         let longestSide = max(max(CGFloat(asset.pixelWidth), CGFloat(asset.pixelHeight)), 1)
-        let scale = min(1, 4096 / longestSide)
+        let scale = min(1.0, 4096.0 / longestSide)
         let targetSize = CGSize(
             width: max(1, CGFloat(asset.pixelWidth) * scale),
             height: max(1, CGFloat(asset.pixelHeight) * scale)
         )
 
-        finalRequestID = manager.requestImage(
+        requestID = PHImageManager.default().requestImage(
             for: asset,
             targetSize: targetSize,
             contentMode: .aspectFit,
-            options: finalOptions
+            options: options
         ) { result, info in
             DispatchQueue.main.async {
                 guard token == requestToken,
@@ -303,22 +277,26 @@ private struct PhotoDetailImageView: View {
                 if let error = info?[PHImageErrorKey] as? Error {
                     _ = error
                     if image == nil { failed = true }
-                    finalRequestID = PHInvalidImageRequestID
+                    requestID = PHInvalidImageRequestID
                     return
                 }
 
                 if let result {
                     image = result
                     failed = false
-                    receivedFinalImage = true
-                    finalRequestID = PHInvalidImageRequestID
-                    if previewRequestID != PHInvalidImageRequestID {
-                        manager.cancelImageRequest(previewRequestID)
-                        previewRequestID = PHInvalidImageRequestID
+                    let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                    if !isDegraded {
+                        receivedFinalImage = true
+                        requestID = PHInvalidImageRequestID
                     }
-                } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
-                    if image == nil { failed = true }
-                    finalRequestID = PHInvalidImageRequestID
+                    return
+                }
+
+                let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                if !isInCloud && !isDegraded && !receivedFinalImage && image == nil {
+                    failed = true
+                    requestID = PHInvalidImageRequestID
                 }
             }
         }
@@ -326,14 +304,9 @@ private struct PhotoDetailImageView: View {
 
     private func cancel() {
         requestToken = UUID()
-        let manager = PHImageManager.default()
-        if previewRequestID != PHInvalidImageRequestID {
-            manager.cancelImageRequest(previewRequestID)
-            previewRequestID = PHInvalidImageRequestID
-        }
-        if finalRequestID != PHInvalidImageRequestID {
-            manager.cancelImageRequest(finalRequestID)
-            finalRequestID = PHInvalidImageRequestID
+        if requestID != PHInvalidImageRequestID {
+            PHImageManager.default().cancelImageRequest(requestID)
+            requestID = PHInvalidImageRequestID
         }
     }
 }
@@ -365,10 +338,7 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
         coordinator.stopPlayback(in: uiView)
-        if coordinator.requestID != PHInvalidImageRequestID {
-            PHImageManager.default().cancelImageRequest(coordinator.requestID)
-            coordinator.requestID = PHInvalidImageRequestID
-        }
+        coordinator.cancelRequest()
         uiView.livePhoto = nil
     }
 
@@ -378,6 +348,8 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
         var onFailure: () -> Void
         private var isPlaying = false
         private var hasLoaded = false
+        private var didFail = false
+        private var requestToken = UUID()
 
         init(onLoaded: @escaping () -> Void, onFailure: @escaping () -> Void) {
             self.onLoaded = onLoaded
@@ -385,34 +357,51 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
         }
 
         func requestLivePhoto(for asset: PHAsset, in view: PHLivePhotoView) {
+            cancelRequest()
+            hasLoaded = false
+            didFail = false
+            let token = requestToken
+
             let options = PHLivePhotoRequestOptions()
             options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
 
-            let screenTarget = CGSize(width: 2048, height: 2048)
+            let longestSide = max(max(CGFloat(asset.pixelWidth), CGFloat(asset.pixelHeight)), 1)
+            let scale = min(1.0, 4096.0 / longestSide)
+            let targetSize = CGSize(
+                width: max(1, CGFloat(asset.pixelWidth) * scale),
+                height: max(1, CGFloat(asset.pixelHeight) * scale)
+            )
+
             requestID = PHImageManager.default().requestLivePhoto(
                 for: asset,
-                targetSize: screenTarget,
+                targetSize: targetSize,
                 contentMode: .aspectFit,
                 options: options
             ) { [weak view, weak self] livePhoto, info in
                 DispatchQueue.main.async {
-                    guard let self, let view else { return }
-                    if (info?[PHImageCancelledKey] as? Bool) == true { return }
+                    guard let self, let view, token == self.requestToken,
+                          (info?[PHImageCancelledKey] as? Bool) != true else { return }
+
+                    if let error = info?[PHImageErrorKey] as? Error {
+                        _ = error
+                        self.failOnce()
+                        return
+                    }
+
                     if let livePhoto {
                         view.livePhoto = livePhoto
                         if !self.hasLoaded {
                             self.hasLoaded = true
                             self.onLoaded()
                         }
-                        if self.requestID != PHInvalidImageRequestID {
-                            self.requestID = PHInvalidImageRequestID
+                        self.requestID = PHInvalidImageRequestID
+                    } else {
+                        let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                        let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                        if !isInCloud && !isDegraded {
+                            self.failOnce()
                         }
-                    } else if let error = info?[PHImageErrorKey] as? Error {
-                        _ = error
-                        self.onFailure()
-                    } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
-                        self.onFailure()
                     }
                 }
             }
@@ -432,6 +421,21 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
             guard isPlaying else { return }
             isPlaying = false
             view.stopPlayback()
+        }
+
+        func cancelRequest() {
+            requestToken = UUID()
+            if requestID != PHInvalidImageRequestID {
+                PHImageManager.default().cancelImageRequest(requestID)
+                requestID = PHInvalidImageRequestID
+            }
+        }
+
+        private func failOnce() {
+            guard !didFail, !hasLoaded else { return }
+            didFail = true
+            requestID = PHInvalidImageRequestID
+            onFailure()
         }
     }
 }
