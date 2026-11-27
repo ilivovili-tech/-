@@ -3,7 +3,7 @@ import Photos
 
 struct YearbookView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
-    @Environment(\\.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     let year: Int
     @State private var selectedAsset: PHAsset?
     @State private var showPhotoDetail = false
@@ -69,7 +69,7 @@ struct YearbookView: View {
                                     }
                             )
                         HStack(spacing: 5) {
-                            ForEach(1...12, id: \\.self) { month in
+                            ForEach(Array(1...12), id: \.self) { month in
                                 Capsule()
                                     .fill(month == displayedMonth ? Color.primary : Color.primary.opacity(0.15))
                                     .frame(height: 3)
@@ -81,7 +81,7 @@ struct YearbookView: View {
                     .padding(.top, 12)
                 }
             }
-            .navigationTitle("\\(year) 年 · 照片书")
+            .navigationTitle("\(year) 年 · 照片书")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showPhotoDetail) {
                 if let selectedAsset {
@@ -105,8 +105,8 @@ struct YearbookView: View {
                     Text(String(format: "%02d", month))
                         .font(.system(size: 54, weight: .light, design: .serif))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\\(month) 月").font(.system(size: 18, weight: .semibold, design: .serif))
-                        Text("\\(items.count) 个瞬间").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("\(month) 月").font(.system(size: 18, weight: .semibold, design: .serif))
+                        Text("\(items.count) 个瞬间").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Text("MEMORIES").font(.system(size: 9, weight: .bold)).tracking(2).foregroundStyle(.secondary)
@@ -120,7 +120,7 @@ struct YearbookView: View {
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 60)
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
-                        ForEach(items, id: \\.localIdentifier) { asset in
+                        ForEach(items, id: \.localIdentifier) { asset in
                             Button {
                                 selectedAsset = asset
                                 showPhotoDetail = true
