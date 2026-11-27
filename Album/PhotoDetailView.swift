@@ -41,6 +41,8 @@ struct PhotoDetailView: View {
                             }
                         } else if isLivePhoto && !livePhotoLoadingFailed {
                             ZStack {
+                                AssetThumbnail(asset: asset, contentMode: .fit)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 LivePhotoPlayerView(asset: asset, isPressing: $isPressingLivePhoto, onLoaded: {
                                     livePhotoLoaded = true
                                 }, onFailure: {
@@ -203,7 +205,10 @@ private struct PhotoDetailImageView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
                 } else if failed {
-                    VStack(spacing: 12) {
+                    ZStack {
+                        AssetThumbnail(asset: asset, contentMode: .fit)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                        VStack(spacing: 12) {
                         Image(systemName: "icloud.slash")
                             .font(.system(size: 32, weight: .light))
                         Text("照片加载失败")
@@ -218,14 +223,23 @@ private struct PhotoDetailImageView: View {
                             .padding(.vertical, 10)
                             .background(.white.opacity(0.16), in: Capsule())
                     }
-                    .foregroundStyle(.white)
-                    .padding(24)
+                        .foregroundStyle(.white)
+                        .padding(24)
+                    }
                 } else {
-                    VStack(spacing: 10) {
-                        ProgressView().tint(.white)
-                        Text("正在加载照片…")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.7))
+                    ZStack {
+                        AssetThumbnail(asset: asset, contentMode: .fit)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                        VStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text("正在加载高清照片…")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.black.opacity(0.55), in: Capsule())
+                        }
+                        .allowsHitTesting(false)
                     }
                 }
             }
