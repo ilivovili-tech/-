@@ -170,7 +170,8 @@ struct PhotoDetailView: View {
 
 
 
-/// Full-size PhotoKit viewer with explicit cloud-download, loading and retry states.
+/// Full-size PhotoKit viewer. Keeps the request alive through SwiftUI layout changes
+/// and displays degraded previews while the final/iCloud image is being delivered.
 private struct PhotoDetailImageView: View {
     let asset: PHAsset
     @Environment(\.displayScale) private var displayScale
@@ -190,22 +191,6 @@ private struct PhotoDetailImageView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                    if isLoading {
-                        VStack {
-                            HStack(spacing: 7) {
-                                ProgressView().tint(.white)
-                                Text("正在载入高清原图")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.white)
-                            }
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 8)
-                            .background(.black.opacity(0.52), in: Capsule())
-                            Spacer()
-                        }
-                        .padding(.top, 14)
-                        .allowsHitTesting(false)
-                    }
                 } else if failed {
                     VStack(spacing: 12) {
                         Image(systemName: "icloud.slash")
@@ -216,7 +201,7 @@ private struct PhotoDetailImageView: View {
                             .font(.system(size: 12))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.7))
-                        Button("重新加载") { load(size: geometry.size) }
+                        Button("重新加载") { load(size: geometry.size, force: true) }
                             .font(.system(size: 14, weight: .semibold))
                             .padding(.horizontal, 18)
                             .padding(.vertical, 10)
@@ -236,26 +221,49 @@ private struct PhotoDetailImageView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .onAppear { load(size: geometry.size) }
             .onChange(of: geometry.size) { _, newSize in
-                if image == nil { load(size: newSize) }
+                // Presentation animations can change GeometryReader size several times.
+                // Never cancel a valid PhotoKit request just because layout is settling.
+                if image == nil && requestID == PHInvalidImageRequestID && !failed {
+                    load(size: newSize)
+                }
             }
             .onDisappear { cancel() }
         }
     }
 
-    private func load(size: CGSize) {
+    private func load(size: CGSize, force: Bool = false) {
         guard size.width > 0, size.height > 0 else { return }
+        if !force && requestID != PHInvalidImageRequestID { return }
         cancel()
+
         image = nil
         failed = false
         isLoading = true
         let token = requestToken
         let scale = max(1, displayScale)
-        let target = CGSize(width: max(1, size.width * scale), height: max(1, size.height * scale))
+        // Request enough pixels for a sharp full-screen image without depending on
+        // transient zero/small geometry values during the cover transition.
+        let target = CGSize(
+            width: max(1200, size.width * scale),
+            height: max(1600, size.height * scale)
+        )
+
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
         options.version = .current
+        options.progressHandler = { _, error, _, _ in
+            guard error == nil else {
+                DispatchQueue.main.async {
+                    guard token == requestToken else { return }
+                    failed = true
+                    isLoading = false
+                    requestID = PHInvalidImageRequestID
+                }
+                return
+            }
+        }
 
         requestID = PHImageManager.default().requestImage(
             for: asset,
@@ -266,26 +274,28 @@ private struct PhotoDetailImageView: View {
             DispatchQueue.main.async {
                 guard token == requestToken else { return }
                 if (info?[PHImageCancelledKey] as? Bool) == true { return }
+
                 if let error = info?[PHImageErrorKey] as? Error {
                     _ = error
-                    failed = image == nil
+                    if image == nil {
+                        failed = true
+                    }
                     isLoading = false
                     requestID = PHInvalidImageRequestID
                     return
                 }
 
                 if let result {
-                    // Show PhotoKit's first usable preview immediately. With
-                    // opportunistic delivery a full-quality image follows.
+                    // Opportunistic delivery may first provide a quick preview.
+                    // Show it immediately instead of leaving the viewer black.
                     image = result
                     failed = false
-                    let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
-                    if !isDegraded {
+                    if (info?[PHImageResultIsDegradedKey] as? Bool) != true {
                         isLoading = false
                         requestID = PHInvalidImageRequestID
                     }
                 } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
-                    failed = image == nil
+                    failed = true
                     isLoading = false
                     requestID = PHInvalidImageRequestID
                 }
