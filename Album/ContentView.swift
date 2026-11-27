@@ -34,6 +34,14 @@ struct ContentView: View {
     private let ink = Color(red: 0.16, green: 0.19, blue: 0.17)
     private let paper = Color(red: 0.96, green: 0.95, blue: 0.91)
 
+    private var availableYears: [Int] {
+        let years = library.assets.compactMap { asset -> Int? in
+            guard let date = asset.creationDate else { return nil }
+            return Calendar.current.component(.year, from: date)
+        }
+        return Array(Set(years)).sorted(by: >)
+    }
+
     var body: some View {
         ZStack {
             paper.ignoresSafeArea()
@@ -158,10 +166,35 @@ struct ContentView: View {
                 } label: { Image(systemName: "chevron.left") }
                 .disabled(selectedYear <= 1900)
                 Spacer()
-                VStack(spacing: 2) {
-                    Text("\(selectedYear)").font(.system(size: 34, weight: .bold, design: .serif))
-                    Text("YEARBOOK · 年度记忆").font(.system(size: 9, weight: .semibold)).tracking(2)
+                Menu {
+                    ForEach(availableYears, id: \.self) { year in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.22)) {
+                                selectedYear = year
+                            }
+                        } label: {
+                            if year == selectedYear {
+                                Label("\(year) 年", systemImage: "checkmark")
+                            } else {
+                                Text("\(year) 年")
+                            }
+                        }
+                    }
+                } label: {
+                    VStack(spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text("\(selectedYear)")
+                                .font(.system(size: 34, weight: .bold, design: .serif))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        Text("YEARBOOK · 年度记忆")
+                            .font(.system(size: 9, weight: .semibold)).tracking(2)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .disabled(availableYears.isEmpty)
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) { selectedYear = min(Calendar.current.component(.year, from: Date()), selectedYear + 1) }
@@ -177,7 +210,9 @@ struct ContentView: View {
                         Text("MY YEAR").font(.system(size: 10, weight: .bold)).tracking(3).foregroundStyle(.white.opacity(0.7))
                         Spacer()
                         Text("\(selectedYear)").font(.system(size: 43, weight: .regular, design: .serif)).foregroundStyle(.white)
-                        Text("珍藏每一个值得记住的瞬间").font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                        Text("\(library.assets(in: selectedYear).count) 个珍贵瞬间")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.82))
                         Spacer()
                         Text("PHOTO COLLECTION  /  NO. 01").font(.system(size: 7, weight: .medium)).tracking(1.4).foregroundStyle(.white.opacity(0.6))
                     }
