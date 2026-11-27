@@ -297,7 +297,7 @@ struct ContentView: View {
                                     VStack(alignment: .leading, spacing: 8) {
                                         ZStack {
                                             RoundedRectangle(cornerRadius: 16).fill(.white)
-                                            if let asset = PHAsset.fetchAssets(in: album, options: nil).firstObject {
+                                            if let asset = library.coverAsset(in: album) {
                                                 AssetThumbnail(asset: asset, contentMode: .fill)
                                                     .clipShape(RoundedRectangle(cornerRadius: 16))
                                             } else {
@@ -316,7 +316,7 @@ struct ContentView: View {
                                         Text(album.localizedTitle ?? "未命名相簿")
                                             .font(.system(size: 15, weight: .semibold))
                                             .foregroundStyle(ink)
-                                        Text("\(PHAsset.fetchAssets(in: album, options: nil).count) 张照片")
+                                        Text("\(library.assetCount(in: album)) 张照片")
                                             .font(.system(size: 11)).foregroundStyle(.secondary)
                                     }
                                     .contentShape(Rectangle())
