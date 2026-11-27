@@ -325,31 +325,7 @@ struct ContentView: View {
     private var tabBar: some View {
         HStack(spacing: 4) {
             ForEach(AlbumTab.allCases, id: \.self) { item in
-                Button {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) { tab = item }
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 17, weight: tab == item ? .semibold : .regular))
-                            .symbolEffect(.bounce, value: tab == item)
-                        Text(item.rawValue)
-                            .font(.system(size: 10, weight: tab == item ? .semibold : .medium))
-                    }
-                    .foregroundStyle(tab == item ? ink : .secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 9)
-                    .padding(.bottom, 7)
-                    .background {
-                        if tab == item {
-                            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                .fill(paper)
-                                .padding(.horizontal, 5)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(tab == item ? .isSelected : [])
+                tabButton(item)
             }
         }
         .padding(.horizontal, 10)
@@ -359,6 +335,37 @@ struct ContentView: View {
             Rectangle().fill(ink.opacity(0.07)).frame(height: 1)
         }
         .background(.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
+    }
+
+    private func tabButton(_ item: AlbumTab) -> some View {
+        let isSelected = tab == item
+        return Button {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                tab = item
+            }
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: item.symbol)
+                    .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
+                    .symbolEffect(.bounce, value: isSelected)
+                Text(item.rawValue)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+            }
+            .foregroundStyle(isSelected ? ink : .secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 9)
+            .padding(.bottom, 7)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(paper)
+                        .padding(.horizontal, 5)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func statCard(title: String, value: String, icon: String) -> some View {
