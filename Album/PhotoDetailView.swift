@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import PhotosUI
 import AVKit
 
 struct PhotoDetailView: View {
@@ -9,6 +10,11 @@ struct PhotoDetailView: View {
     @State private var feedbackMessage: String?
     @State private var player: AVPlayer?
     @State private var videoLoadingFailed = false
+    @State private var livePhotoLoadingFailed = false
+
+    private var isLivePhoto: Bool {
+        asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
+    }
 
     var body: some View {
         NavigationStack {
@@ -29,6 +35,20 @@ struct PhotoDetailView: View {
                                     Text("正在加载视频…").font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
                                 }
                             }
+                        } else if isLivePhoto && !livePhotoLoadingFailed {
+                            LivePhotoPlayerView(asset: asset) {
+                                livePhotoLoadingFailed = true
+                            }
+                            .overlay(alignment: .bottom) {
+                                Label("按住照片播放实况", systemImage: "livephoto")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(.black.opacity(0.55), in: Capsule())
+                                    .padding(.bottom, 14)
+                                    .allowsHitTesting(false)
+                            }
                         } else {
                             AssetThumbnail(asset: asset, contentMode: .fit)
                         }
@@ -41,7 +61,7 @@ struct PhotoDetailView: View {
                             .foregroundStyle(.white)
                         HStack(spacing: 14) {
                             Label(asset.mediaType == .video ? "视频" : "照片", systemImage: asset.mediaType == .video ? "video" : "photo")
-                            if asset.mediaSubtypes.contains(.photoLive) {
+                            if isLivePhoto {
                                 Label("实况", systemImage: "livephoto")
                             }
                             Text("\(Int(asset.pixelWidth)) × \(Int(asset.pixelHeight))")
@@ -91,12 +111,71 @@ struct PhotoDetailView: View {
         let options = PHVideoRequestOptions()
         options.deliveryMode = .automatic
         options.isNetworkAccessAllowed = true
-        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
+        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
             DispatchQueue.main.async {
                 if let avAsset {
                     player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
                 } else {
                     videoLoadingFailed = true
+                }
+            }
+        }
+    }
+}
+
+private struct LivePhotoPlayerView: UIViewRepresentable {
+    let asset: PHAsset
+    let onFailure: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onFailure: onFailure)
+    }
+
+    func makeUIView(context: Context) -> PHLivePhotoView {
+        let view = PHLivePhotoView()
+        view.backgroundColor = .black
+        view.contentMode = .scaleAspectFit
+        context.coordinator.requestLivePhoto(for: asset, in: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        context.coordinator.onFailure = onFailure
+    }
+
+    static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
+        if coordinator.requestID != PHInvalidImageRequestID {
+            PHImageManager.default().cancelImageRequest(coordinator.requestID)
+        }
+        uiView.livePhoto = nil
+    }
+
+    final class Coordinator {
+        var requestID: PHImageRequestID = PHInvalidImageRequestID
+        var onFailure: () -> Void
+
+        init(onFailure: @escaping () -> Void) {
+            self.onFailure = onFailure
+        }
+
+        func requestLivePhoto(for asset: PHAsset, in view: PHLivePhotoView) {
+            let options = PHLivePhotoRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+
+            requestID = PHImageManager.default().requestLivePhoto(
+                for: asset,
+                targetSize: PHImageManagerMaximumSize,
+                contentMode: .aspectFit,
+                options: options
+            ) { [weak view, weak self] livePhoto, info in
+                DispatchQueue.main.async {
+                    guard let self, let view else { return }
+                    if let livePhoto {
+                        view.livePhoto = livePhoto
+                    } else if (info?[PHImageCancelledKey] as? Bool) != true {
+                        self.onFailure()
+                    }
                 }
             }
         }
