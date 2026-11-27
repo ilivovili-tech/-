@@ -57,7 +57,7 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    tabBar
+                    if tab != .years { tabBar }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -102,158 +102,201 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: "camera.macro")
-                        .font(.system(size: 10, weight: .semibold))
+        HStack {
+            if tab != .years {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("私藏时光")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .tracking(2)
+                        .foregroundStyle(.secondary)
+                    Text(tab.rawValue)
+                        .font(.system(size: 25, weight: .bold, design: .serif))
                 }
-                .foregroundStyle(.secondary)
-                Text(tab == .years ? "我的照片书" : tab.rawValue)
-                    .font(.system(size: 29, weight: .bold, design: .serif))
-                    .contentTransition(.opacity)
             }
             Spacer()
-            if library.authorization == .authorized || library.authorization == .limited {
-                HStack(spacing: 7) {
-                    Image(systemName: "photo.stack")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(library.photoCount.formatted())
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(ink)
-                .padding(.horizontal, 13)
-                .padding(.vertical, 10)
-                .background(.white.opacity(0.78), in: Capsule())
-                .overlay(Capsule().stroke(ink.opacity(0.06), lineWidth: 1))
-                .accessibilityLabel("照片数量：\\(library.photoCount)")
-            } else {
-                Image(systemName: "photo.stack")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 42, height: 42)
-                    .background(.white.opacity(0.7), in: Circle())
+            Menu {
+                Button { tab = .albums } label: { Label("相册", systemImage: "square.stack") }
+                Button { tab = .memories } label: { Label("回忆", systemImage: "sparkles") }
+                Button { tab = .organize } label: { Label("整理照片", systemImage: "slider.horizontal.3") }
+            } label: {
+                Image(systemName: "person")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(ink)
+                    .frame(width: 48, height: 48)
+                    .background(.white.opacity(0.76), in: Circle())
+                    .overlay(Circle().stroke(ink.opacity(0.12), lineWidth: 0.8))
             }
+            .accessibilityLabel("个人与功能菜单")
         }
         .padding(.horizontal, 22)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .padding(.top, tab == .years ? 10 : 14)
+        .padding(.bottom, tab == .years ? 2 : 12)
     }
 
     private var yearsPage: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                if library.authorization == .authorized || library.authorization == .limited {
-                    yearBook
-                    HStack(spacing: 10) {
-                        statCard(title: "照片", value: "\(library.photoCount)", icon: "photo")
-                        statCard(title: "视频", value: "\(library.videoCount)", icon: "video")
-                    }
-                    Text("最近的时光").font(.system(size: 21, weight: .bold, design: .serif))
-                    photoGrid(Array(library.assets.prefix(18)))
-                } else {
-                    permissionCard
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
-        }
-        .modifier(AlbumScrollEdgeEffect())
-    }
+        GeometryReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                Color.white.ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.97, green: 0.96, blue: 0.94),
+                        .white,
+                        Color(red: 0.99, green: 0.96, blue: 0.97),
+                        .white
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-    private var yearBook: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) { selectedYear = max(1900, selectedYear - 1) }
-                } label: { Image(systemName: "chevron.left") }
-                .disabled(selectedYear <= 1900)
-                Spacer()
-                Menu {
-                    ForEach(availableYears, id: \.self) { year in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                selectedYear = year
-                            }
-                        } label: {
-                            if year == selectedYear {
-                                Label("\(year) 年", systemImage: "checkmark")
+                if library.authorization == .authorized || library.authorization == .limited {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            if availableYears.isEmpty {
+                                emptyState("还没有照片", subtitle: "允许访问照片图库后，你的年度照片书会出现在这里。", icon: "photo.on.rectangle")
+                                    .padding(.top, 80)
                             } else {
-                                Text("\(year) 年")
+                                ForEach(availableYears, id: \.self) { year in
+                                    yearShelfRow(year: year, width: proxy.size.width)
+                                }
                             }
                         }
+                        .padding(.top, 4)
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 110)
+                    }
+                    .modifier(AlbumScrollEdgeEffect())
+                } else {
+                    permissionCard.padding(.horizontal, 20).padding(.top, 50)
+                }
+
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        tab = .organize
                     }
                 } label: {
-                    VStack(spacing: 2) {
-                        HStack(spacing: 5) {
-                            Text("\(selectedYear)")
-                                .font(.system(size: 34, weight: .bold, design: .serif))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        Text("YEARBOOK · 年度记忆")
-                            .font(.system(size: 9, weight: .semibold)).tracking(2)
-                    }
-                    .contentShape(Rectangle())
+                    Label("清理", systemImage: "sparkles")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(ink)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 13)
+                        .background(.regularMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.9), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 5)
                 }
-                .buttonStyle(.plain)
-                .disabled(availableYears.isEmpty)
-                Spacer()
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) { selectedYear = min(Calendar.current.component(.year, from: Date()), selectedYear + 1) }
-                } label: { Image(systemName: "chevron.right") }
-                .disabled(selectedYear >= Calendar.current.component(.year, from: Date()))
+                .padding(.trailing, 20)
+                .padding(.bottom, 22)
+                .accessibilityLabel("打开照片清理")
+            }
+        }
+    }
+
+    private func yearShelfRow(year: Int, width: CGFloat) -> some View {
+        let assets = library.assets(in: year)
+        let isCurrent = year == selectedYear
+        let palette: [Color] = [
+            Color(red: 0.96, green: 0.75, blue: 0.12),
+            Color(red: 0.91, green: 0.22, blue: 0.20),
+            Color(red: 0.20, green: 0.68, blue: 0.40),
+            Color(red: 0.37, green: 0.54, blue: 0.83),
+            Color(red: 0.65, green: 0.48, blue: 0.72)
+        ]
+        let accent = palette[abs(year) % palette.count]
+
+        return HStack(spacing: 9) {
+            Button {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                    selectedYear = year
+                }
+                showYearbook = true
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    if isCurrent {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .padding(.bottom, 4)
+                    }
+                    Text(String(year))
+                        .font(.system(size: isCurrent ? 27 : 22, weight: .bold, design: .serif))
+                        .monospacedDigit()
+                    if isCurrent {
+                        Text("打开照片书")
+                            .font(.system(size: 9, weight: .medium))
+                            .lineLimit(1)
+                    }
+                }
+                .foregroundStyle(ink.opacity(isCurrent ? 1 : 0.36))
+                .frame(width: 88, alignment: .leading)
+                .blur(radius: isCurrent ? 0 : 0.45)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            ZStack {
-                RoundedRectangle(cornerRadius: 8).fill(Color(red: 0.29, green: 0.37, blue: 0.31))
-                    .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 9)
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("MY YEAR").font(.system(size: 10, weight: .bold)).tracking(3).foregroundStyle(.white.opacity(0.7))
-                        Spacer()
-                        Text("\(selectedYear)").font(.system(size: 43, weight: .regular, design: .serif)).foregroundStyle(.white)
-                        Text("\(library.assets(in: selectedYear).count) 个珍贵瞬间")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.82))
-                        Spacer()
-                        Text("PHOTO COLLECTION  /  NO. 01").font(.system(size: 7, weight: .medium)).tracking(1.4).foregroundStyle(.white.opacity(0.6))
-                    }
-                    .padding(20)
-                    Spacer(minLength: 0)
-                    ZStack {
-                        if let cover = library.assets(in: selectedYear).first {
+
+            Button {
+                selectedYear = year
+                showYearbook = true
+            } label: {
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 25, style: .continuous)
+                        .fill(.white)
+                        .frame(width: min(width * 0.62, 245), height: 270)
+                        .offset(x: 17, y: 8)
+                        .shadow(color: .black.opacity(0.12), radius: 15, x: 5, y: 8)
+                    RoundedRectangle(cornerRadius: 25, style: .continuous)
+                        .fill(accent)
+                        .frame(width: min(width * 0.60, 237), height: 266)
+                        .offset(x: 8, y: 4)
+                    ZStack(alignment: .topLeading) {
+                        if let cover = assets.first {
                             AssetThumbnail(asset: cover, contentMode: .fill)
-                                .frame(width: 118, height: 190).clipped()
-                                .rotation3DEffect(.degrees(-5), axis: (x: 0, y: 1, z: 0))
+                                .frame(width: min(width * 0.58, 229), height: 262)
+                                .clipped()
                         } else {
-                            Image(systemName: "sun.max").font(.system(size: 52, weight: .ultraLight)).foregroundStyle(.white.opacity(0.7))
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(Color(red: 0.91, green: 0.91, blue: 0.89))
+                                .frame(width: min(width * 0.58, 229), height: 262)
+                                .overlay {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 42, weight: .ultraLight))
+                                        .foregroundStyle(.white)
+                                }
                         }
+                        LinearGradient(
+                            colors: [.black.opacity(0.35), .clear, .black.opacity(0.12)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(width: min(width * 0.58, 229), height: 262)
+                        Text(String(year))
+                            .font(.system(size: 43, weight: .bold, design: .serif))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                            .padding(17)
                     }
-                    .padding(9)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(.white.opacity(0.55), lineWidth: 0.8)
+                    }
+                    .shadow(color: .black.opacity(0.16), radius: 17, x: 0, y: 11)
                 }
+                .frame(width: min(width * 0.66, 260), height: 286)
+                .rotation3DEffect(.degrees(-7), axis: (x: 0, y: 1, z: 0), anchor: .leading, perspective: 0.7)
+                .rotationEffect(.degrees(-3))
+                .contentShape(Rectangle())
             }
-            .frame(height: 208)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .rotation3DEffect(.degrees(-2), axis: (x: 0, y: 1, z: 0))
-            Button { showYearbook = true } label: {
-                HStack(spacing: 8) {
-                    Text("翻开 \(selectedYear) 年照片书")
-                    Image(systemName: "arrow.up.right")
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 17).padding(.vertical, 11)
-                .background(ink, in: Capsule())
+            .buttonStyle(.plain)
+            .overlay(alignment: .bottomLeading) {
+                Text("\(assets.count) 张照片")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .offset(x: 5, y: 14)
             }
-            .frame(maxWidth: .infinity)
+            Spacer(minLength: 0)
         }
-        .padding(18)
-        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 22))
+        .frame(maxWidth: .infinity)
+        .frame(height: 318)
+        .padding(.leading, 2)
     }
 
     private var permissionCard: some View {
