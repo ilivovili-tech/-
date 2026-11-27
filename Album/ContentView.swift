@@ -1,0 +1,336 @@
+import SwiftUI
+import Photos
+
+private enum AlbumTab: String, CaseIterable {
+    case years = "时光"
+    case albums = "相册"
+    case memories = "回忆"
+    case organize = "整理"
+
+    var symbol: String {
+        switch self {
+        case .years: return "book.closed.fill"
+        case .albums: return "square.stack.fill"
+        case .memories: return "sparkles"
+        case .organize: return "slider.horizontal.3"
+        }
+    }
+}
+
+struct ContentView: View {
+    @EnvironmentObject private var library: PhotoLibraryStore
+    @State private var tab: AlbumTab = .years
+    @State private var selectedYear = Calendar.current.component(.year, from: Date())
+    @State private var showDeleteConfirmation = false
+    @State private var pendingDelete: PHAsset?
+    @State private var errorMessage: String?
+
+    private let ink = Color(red: 0.16, green: 0.19, blue: 0.17)
+    private let paper = Color(red: 0.96, green: 0.95, blue: 0.91)
+
+    var body: some View {
+        ZStack {
+            paper.ignoresSafeArea()
+            VStack(spacing: 0) {
+                header
+                Group {
+                    switch tab {
+                    case .years: yearsPage
+                    case .albums: albumsPage
+                    case .memories: memoriesPage
+                    case .organize: organizePage
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                tabBar
+            }
+        }
+        .foregroundStyle(ink)
+        .task { library.refresh() }
+        .alert("删除这张照片？", isPresented: $showDeleteConfirmation) {
+            Button("取消", role: .cancel) { pendingDelete = nil }
+            Button("移至最近删除", role: .destructive) {
+                guard let asset = pendingDelete else { return }
+                Task {
+                    do { try await library.delete(asset) }
+                    catch { errorMessage = error.localizedDescription }
+                    pendingDelete = nil
+                }
+            }
+        } message: {
+            Text("照片将交由系统照片图库管理，你可以在系统“最近删除”中恢复。")
+        }
+        .alert("操作未完成", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            Button("好", role: .cancel) { errorMessage = nil }
+        } message: { Text(errorMessage ?? "") }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("私藏时光").font(.system(size: 12, weight: .medium, design: .rounded)).tracking(2).foregroundStyle(.secondary)
+                Text(tab == .years ? "我的照片书" : tab.rawValue)
+                    .font(.system(size: 29, weight: .bold, design: .serif))
+            }
+            Spacer()
+            Image(systemName: "circle.grid.2x2")
+                .font(.system(size: 18, weight: .medium))
+                .frame(width: 44, height: 44)
+                .background(.white.opacity(0.7), in: Circle())
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+    }
+
+    private var yearsPage: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 20) {
+                if library.authorization == .authorized || library.authorization == .limited {
+                    yearBook
+                    HStack(spacing: 10) {
+                        statCard(title: "照片", value: "\(library.photoCount)", icon: "photo")
+                        statCard(title: "视频", value: "\(library.videoCount)", icon: "video")
+                    }
+                    Text("最近的时光").font(.system(size: 21, weight: .bold, design: .serif))
+                    photoGrid(Array(library.assets.prefix(18)))
+                } else {
+                    permissionCard
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var yearBook: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Button { selectedYear -= 1 } label: { Image(systemName: "chevron.left") }
+                Spacer()
+                VStack(spacing: 2) {
+                    Text("\(selectedYear)").font(.system(size: 34, weight: .bold, design: .serif))
+                    Text("YEARBOOK · 年度记忆").font(.system(size: 9, weight: .semibold)).tracking(2)
+                }
+                Spacer()
+                Button { selectedYear = Calendar.current.component(.year, from: Date()) } label: { Image(systemName: "chevron.right") }
+            }
+            .buttonStyle(.plain)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(Color(red: 0.29, green: 0.37, blue: 0.31))
+                    .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 9)
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("MY YEAR").font(.system(size: 10, weight: .bold)).tracking(3).foregroundStyle(.white.opacity(0.7))
+                        Spacer()
+                        Text("\(selectedYear)").font(.system(size: 43, weight: .regular, design: .serif)).foregroundStyle(.white)
+                        Text("珍藏每一个值得记住的瞬间").font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                        Spacer()
+                        Text("PHOTO COLLECTION  /  NO. 01").font(.system(size: 7, weight: .medium)).tracking(1.4).foregroundStyle(.white.opacity(0.6))
+                    }
+                    .padding(20)
+                    Spacer(minLength: 0)
+                    ZStack {
+                        if let cover = library.assets(in: selectedYear).first {
+                            AssetThumbnail(asset: cover, contentMode: .fill)
+                                .frame(width: 118, height: 190).clipped()
+                                .rotation3DEffect(.degrees(-5), axis: (x: 0, y: 1, z: 0))
+                        } else {
+                            Image(systemName: "sun.max").font(.system(size: 52, weight: .ultraLight)).foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(9)
+                }
+            }
+            .frame(height: 208)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .rotation3DEffect(.degrees(-2), axis: (x: 0, y: 1, z: 0))
+            Text("轻触年度封面，翻阅这一年的照片故事。")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var permissionCard: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle.angled").font(.system(size: 42, weight: .light))
+                .foregroundStyle(Color(red: 0.36, green: 0.48, blue: 0.39))
+            Text("让回忆住进照片书").font(.system(size: 22, weight: .bold, design: .serif))
+            Text("允许访问照片图库后，即可按年份浏览照片、制作年度封面并整理相册。照片只在你的设备上读取。")
+                .font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Button { Task { await library.requestAccess() } } label: {
+                Text("开启照片访问").font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .background(ink, in: Capsule())
+            }
+        }
+        .padding(26)
+        .frame(maxWidth: .infinity)
+        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 24))
+        .padding(.top, 28)
+    }
+
+    private var albumsPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Text("我的收藏").font(.system(size: 22, weight: .bold, design: .serif))
+                    Spacer()
+                    Text("\(library.albums.count) 个相簿").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                if library.authorization == .authorized || library.authorization == .limited {
+                    if library.albums.isEmpty {
+                        emptyState("还没有自定义相簿", subtitle: "你可以在系统照片 App 中创建相簿。", icon: "square.stack")
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                            ForEach(library.albums, id: \.localIdentifier) { album in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 16).fill(.white)
+                                        if let asset = PHAsset.fetchAssets(in: album, options: nil).firstObject {
+                                            AssetThumbnail(asset: asset, contentMode: .fill).clipShape(RoundedRectangle(cornerRadius: 16))
+                                        } else {
+                                            Image(systemName: "photo.stack").font(.largeTitle).foregroundStyle(.secondary)
+                                        }
+                                    }.frame(height: 140)
+                                    Text(album.localizedTitle ?? "未命名相簿").font(.system(size: 15, weight: .semibold))
+                                    Text("\(PHAsset.fetchAssets(in: album, options: nil).count) 张照片").font(.system(size: 11)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } else { permissionCard }
+            }.padding(20)
+        }
+    }
+
+    private var memoriesPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("把今天，交给回忆").font(.system(size: 23, weight: .bold, design: .serif))
+                Text("ON THIS DAY").font(.system(size: 10, weight: .bold)).tracking(2).foregroundStyle(.secondary)
+                let matches = library.assets.filter {
+                    guard let date = $0.creationDate else { return false }
+                    return Calendar.current.component(.month, from: date) == Calendar.current.component(.month, from: Date())
+                        && Calendar.current.component(.day, from: date) == Calendar.current.component(.day, from: Date())
+                        && Calendar.current.component(.year, from: date) != Calendar.current.component(.year, from: Date())
+                }
+                if matches.isEmpty {
+                    emptyState("今天还没有往年记忆", subtitle: "当你积累更多照片，这里会出现同一天的珍贵瞬间。", icon: "sparkles")
+                } else {
+                    photoGrid(matches)
+                }
+                Text("每一张照片，都是时间寄来的明信片。")
+                    .font(.system(size: 15, weight: .medium, design: .serif)).foregroundStyle(.secondary)
+                    .padding(.vertical, 22)
+            }.padding(20)
+        }
+    }
+
+    private var organizePage: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                organizeRow("相似照片", detail: "按拍摄时间相近的照片辅助整理", icon: "square.on.square")
+                organizeRow("视频与连拍", detail: "快速筛选视频和连拍内容", icon: "rectangle.stack")
+                organizeRow("待整理照片", detail: "先预览，再决定是否移至最近删除", icon: "tray")
+                Text("提示：当前版本以时间和媒体类型分类，不会自动判断照片内容是否相同。")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 8)
+            }.padding(20)
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(AlbumTab.allCases, id: \.self) { item in
+                Button { withAnimation(.easeInOut(duration: 0.2)) { tab = item } } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: item.symbol).font(.system(size: 18, weight: .medium))
+                        Text(item.rawValue).font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(tab == item ? ink : .secondary)
+                    .frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 8)
+                }.buttonStyle(.plain)
+            }
+        }
+        .background(.white.opacity(0.85))
+        .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.08)).frame(height: 1) }
+    }
+
+    private func statCard(title: String, value: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 20, weight: .bold, design: .serif))
+                Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }.padding(15).frame(maxWidth: .infinity).background(.white.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func photoGrid(_ assets: [PHAsset]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
+            ForEach(assets, id: \.localIdentifier) { asset in
+                ZStack(alignment: .topTrailing) {
+                    AssetThumbnail(asset: asset, contentMode: .fill).aspectRatio(1, contentMode: .fill).clipped()
+                    if asset.mediaType == .video {
+                        Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.white).padding(7)
+                    }
+                    Button {
+                        pendingDelete = asset
+                        showDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white).padding(8).background(.black.opacity(0.35), in: Circle())
+                    }.padding(5)
+                }.clipShape(RoundedRectangle(cornerRadius: 9))
+            }
+        }
+    }
+
+    private func organizeRow(_ title: String, detail: String, icon: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon).font(.system(size: 21)).frame(width: 48, height: 48)
+                .background(paper, in: RoundedRectangle(cornerRadius: 14))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
+        }.padding(13).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 17))
+    }
+
+    private func emptyState(_ title: String, subtitle: String, icon: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 35, weight: .light)).foregroundStyle(.secondary)
+            Text(title).font(.system(size: 17, weight: .semibold, design: .serif))
+            Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }.frame(maxWidth: .infinity).padding(32).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+private struct AssetThumbnail: View {
+    @EnvironmentObject private var library: PhotoLibraryStore
+    let asset: PHAsset
+    var contentMode: ContentMode = .fill
+    @State private var image: UIImage?
+
+    var body: some View {
+        GeometryReader { proxy in
+            Group {
+                if let image {
+                    Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
+                } else {
+                    Rectangle().fill(Color(red: 0.86, green: 0.85, blue: 0.80))
+                        .overlay(Image(systemName: "photo").foregroundStyle(.white.opacity(0.8)))
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+            .task(id: asset.localIdentifier) {
+                library.image(for: asset, size: CGSize(width: max(proxy.size.width, 100) * 2, height: max(proxy.size.height, 100) * 2)) { image = $0 }
+            }
+        }
+    }
+}
