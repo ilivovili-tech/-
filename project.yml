@@ -12,6 +12,7 @@ settings:
     INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 相册需要访问照片图库，以便按时间整理和展示你的照片。
     INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 相册仅在你主动选择保存时请求添加照片权限。
     INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+    INFOPLIST_KEY_UIRequiresFullScreen: YES
 targets:
   XiangCe:
     type: application
