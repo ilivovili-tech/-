@@ -27,6 +27,9 @@ struct ContentView: View {
     @State private var showYearbook = false
     @State private var showPhotoDetail = false
     @State private var activePhoto: PHAsset?
+    @State private var showCreateAlbum = false
+    @State private var showAlbumDetail = false
+    @State private var selectedAlbum: PHAssetCollection?
 
     private let ink = Color(red: 0.16, green: 0.19, blue: 0.17)
     private let paper = Color(red: 0.96, green: 0.95, blue: 0.91)
@@ -56,6 +59,14 @@ struct ContentView: View {
         .sheet(isPresented: $showPhotoDetail) {
             if let activePhoto {
                 PhotoDetailView(asset: activePhoto).environmentObject(library)
+            }
+        }
+        .sheet(isPresented: $showCreateAlbum) {
+            CreateAlbumView().environmentObject(library)
+        }
+        .sheet(isPresented: $showAlbumDetail) {
+            if let selectedAlbum {
+                AlbumDetailView(album: selectedAlbum).environmentObject(library)
             }
         }
         .alert("删除这张照片？", isPresented: $showDeleteConfirmation) {
@@ -195,28 +206,56 @@ struct ContentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Text("我的收藏").font(.system(size: 22, weight: .bold, design: .serif))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("我的收藏").font(.system(size: 22, weight: .bold, design: .serif))
+                        Text("创建属于自己的主题相簿").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    Text("\(library.albums.count) 个相簿").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Button { showCreateAlbum = true } label: {
+                        Label("新建", systemImage: "plus")
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 13).padding(.vertical, 9)
+                            .background(ink, in: Capsule()).foregroundStyle(.white)
+                    }
                 }
                 if library.authorization == .authorized || library.authorization == .limited {
                     if library.albums.isEmpty {
-                        emptyState("还没有自定义相簿", subtitle: "你可以在系统照片 App 中创建相簿。", icon: "square.stack")
+                        emptyState("还没有自定义相簿", subtitle: "点击右上角“新建”，创建你的第一个主题相簿。", icon: "square.stack")
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
                             ForEach(library.albums, id: \.localIdentifier) { album in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 16).fill(.white)
-                                        if let asset = PHAsset.fetchAssets(in: album, options: nil).firstObject {
-                                            AssetThumbnail(asset: asset, contentMode: .fill).clipShape(RoundedRectangle(cornerRadius: 16))
-                                        } else {
-                                            Image(systemName: "photo.stack").font(.largeTitle).foregroundStyle(.secondary)
+                                Button {
+                                    selectedAlbum = album
+                                    showAlbumDetail = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 16).fill(.white)
+                                            if let asset = PHAsset.fetchAssets(in: album, options: nil).firstObject {
+                                                AssetThumbnail(asset: asset, contentMode: .fill)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                            } else {
+                                                Image(systemName: "photo.stack").font(.largeTitle).foregroundStyle(.secondary)
+                                            }
                                         }
-                                    }.frame(height: 140)
-                                    Text(album.localizedTitle ?? "未命名相簿").font(.system(size: 15, weight: .semibold))
-                                    Text("\(PHAsset.fetchAssets(in: album, options: nil).count) 张照片").font(.system(size: 11)).foregroundStyle(.secondary)
+                                        .frame(height: 140)
+                                        .overlay(alignment: .bottomTrailing) {
+                                            Image(systemName: "arrow.up.right")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(8)
+                                                .background(.black.opacity(0.35), in: Circle())
+                                                .padding(8)
+                                        }
+                                        Text(album.localizedTitle ?? "未命名相簿")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(ink)
+                                        Text("\(PHAsset.fetchAssets(in: album, options: nil).count) 张照片")
+                                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                                    }
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
