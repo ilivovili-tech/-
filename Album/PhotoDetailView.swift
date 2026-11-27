@@ -190,6 +190,22 @@ private struct PhotoDetailImageView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
+                    if isLoading {
+                        VStack {
+                            HStack(spacing: 7) {
+                                ProgressView().tint(.white)
+                                Text("正在载入高清原图")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.white)
+                            }
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 8)
+                            .background(.black.opacity(0.52), in: Capsule())
+                            Spacer()
+                        }
+                        .padding(.top, 14)
+                        .allowsHitTesting(false)
+                    }
                 } else if failed {
                     VStack(spacing: 12) {
                         Image(systemName: "icloud.slash")
@@ -236,7 +252,7 @@ private struct PhotoDetailImageView: View {
         let scale = max(1, displayScale)
         let target = CGSize(width: max(1, size.width * scale), height: max(1, size.height * scale))
         let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
+        options.deliveryMode = .opportunistic
         options.resizeMode = .fast
         options.isNetworkAccessAllowed = true
         options.version = .current
@@ -252,20 +268,24 @@ private struct PhotoDetailImageView: View {
                 if (info?[PHImageCancelledKey] as? Bool) == true { return }
                 if let error = info?[PHImageErrorKey] as? Error {
                     _ = error
-                    image = nil
-                    failed = true
+                    failed = image == nil
                     isLoading = false
                     requestID = PHInvalidImageRequestID
                     return
                 }
-                if let result, (info?[PHImageResultIsDegradedKey] as? Bool) != true {
+
+                if let result {
+                    // Show PhotoKit's first usable preview immediately. With
+                    // opportunistic delivery a full-quality image follows.
                     image = result
                     failed = false
-                    isLoading = false
-                    requestID = PHInvalidImageRequestID
-                } else if result == nil,
-                          (info?[PHImageResultIsInCloudKey] as? Bool) != true {
-                    failed = true
+                    let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) == true
+                    if !isDegraded {
+                        isLoading = false
+                        requestID = PHInvalidImageRequestID
+                    }
+                } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
+                    failed = image == nil
                     isLoading = false
                     requestID = PHInvalidImageRequestID
                 }
