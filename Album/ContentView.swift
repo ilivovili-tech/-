@@ -70,9 +70,11 @@ struct ContentView: View {
                 .environmentObject(library)
                 .ignoresSafeArea(edges: .all)
         }
-        .sheet(isPresented: $showPhotoDetail) {
+        .fullScreenCover(isPresented: $showPhotoDetail) {
             if let activePhoto {
-                PhotoDetailView(asset: activePhoto).environmentObject(library)
+                PhotoDetailView(asset: activePhoto)
+                    .environmentObject(library)
+                    .ignoresSafeArea(edges: .all)
             }
         }
         .sheet(isPresented: $showCreateAlbum) {
