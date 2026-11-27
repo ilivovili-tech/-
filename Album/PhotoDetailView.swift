@@ -11,6 +11,7 @@ struct PhotoDetailView: View {
     @State private var player: AVPlayer?
     @State private var videoLoadingFailed = false
     @State private var livePhotoLoadingFailed = false
+    @State private var videoRequestID: PHImageRequestID = PHInvalidImageRequestID
 
     private var isLivePhoto: Bool {
         asset.mediaType == .image && asset.mediaSubtypes.contains(.photoLive)
@@ -73,7 +74,14 @@ struct PhotoDetailView: View {
                 .padding(.horizontal, 14)
             }
             .task { loadVideoIfNeeded() }
-            .onDisappear { player?.pause() }
+            .onDisappear {
+                player?.pause()
+                player = nil
+                if videoRequestID != PHInvalidImageRequestID {
+                    PHImageManager.default().cancelImageRequest(videoRequestID)
+                    videoRequestID = PHInvalidImageRequestID
+                }
+            }
             .toolbarColorScheme(.dark, for: .navigationBar)
             .alert("相簿操作", isPresented: Binding(get: { feedbackMessage != nil }, set: { if !$0 { feedbackMessage = nil } })) { Button("好", role: .cancel) { feedbackMessage = nil } } message: { Text(feedbackMessage ?? "") }
             .toolbar {
@@ -111,8 +119,10 @@ struct PhotoDetailView: View {
         let options = PHVideoRequestOptions()
         options.deliveryMode = .automatic
         options.isNetworkAccessAllowed = true
-        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+        videoRequestID = PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
             DispatchQueue.main.async {
+                guard videoRequestID != PHInvalidImageRequestID else { return }
+                videoRequestID = PHInvalidImageRequestID
                 if let avAsset {
                     player = AVPlayer(playerItem: AVPlayerItem(asset: avAsset))
                 } else {
