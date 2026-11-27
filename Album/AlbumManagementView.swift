@@ -5,8 +5,7 @@ struct AlbumDetailView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
     @Environment(\.dismiss) private var dismiss
     let album: PHAssetCollection
-    @State private var selectedAsset: PHAsset?
-    @State private var showPhoto = false
+    let onSelectAsset: (PHAsset) -> Void
     @State private var errorMessage: String?
 
     private var items: [PHAsset] { library.assets(in: album) }
@@ -29,8 +28,7 @@ struct AlbumDetailView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                         ForEach(items, id: \.localIdentifier) { asset in
                             Button {
-                                selectedAsset = asset
-                                showPhoto = true
+                                onSelectAsset(asset)
                             } label: {
                                 AssetThumbnail(asset: asset, contentMode: .fill)
                                     .aspectRatio(1, contentMode: .fill)
@@ -48,15 +46,6 @@ struct AlbumDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("关闭") { dismiss() }
-                }
-            }
-            // AlbumDetailView is itself presented as a sheet from ContentView.
-            // Present the photo viewer full-screen to avoid a nested sheet,
-            // which can produce a blank presentation on iOS.
-            .fullScreenCover(isPresented: $showPhoto) {
-                if let selectedAsset {
-                    PhotoDetailView(asset: selectedAsset)
-                        .environmentObject(library)
                 }
             }
             .alert("无法打开相簿", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
