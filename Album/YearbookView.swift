@@ -24,32 +24,6 @@ struct YearbookView: View {
                         monthNavigation
                         monthPage(displayedMonth)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.white.opacity(0.82))
-                                    .shadow(color: .black.opacity(0.10), radius: 18, x: 0, y: 9)
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(Color(red: 0.55, green: 0.49, blue: 0.37).opacity(0.13), lineWidth: 1)
-                            }
-                            .overlay(alignment: .leading) {
-                                LinearGradient(
-                                    colors: [Color.black.opacity(0.10), Color.clear],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                                .frame(width: 9)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .allowsHitTesting(false)
-                            }
-                            .rotation3DEffect(
-                                .degrees(pageRotation),
-                                axis: (x: 0, y: 1, z: 0),
-                                anchor: pageRotation < 0 ? .leading : .trailing,
-                                perspective: 0.42
-                            )
-                            .shadow(color: .black.opacity(abs(pageRotation) / 520), radius: 16, x: 0, y: 7)
                             .contentShape(Rectangle())
                             .simultaneousGesture(
                                 DragGesture(minimumDistance: 25)
@@ -151,7 +125,6 @@ struct YearbookView: View {
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
     private func monthPage(_ month: Int) -> some View {
         let items = library.assets(in: year, month: month)
         let calendar = Calendar.current
@@ -163,92 +136,136 @@ struct YearbookView: View {
         let grouped = Dictionary(grouping: items.filter { $0.creationDate != nil }) {
             calendar.component(.day, from: $0.creationDate!)
         }
-        let allWeekdaySymbols = calendar.veryShortStandaloneWeekdaySymbols
-        let firstWeekdayIndex = max(0, min(calendar.firstWeekday - 1, allWeekdaySymbols.count - 1))
-        let weekdaySymbols = Array(allWeekdaySymbols[firstWeekdayIndex..<allWeekdaySymbols.count])
-            + Array(allWeekdaySymbols[0..<firstWeekdayIndex])
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        let firstIndex = max(0, min(calendar.firstWeekday - 1, symbols.count - 1))
+        let weekdays = Array(symbols[firstIndex..<symbols.count]) + Array(symbols[0..<firstIndex])
 
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .lastTextBaseline) {
+        return HStack(spacing: 0) {
+            // Left leaf: monthly calendar and date index.
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 13) {
                     Text(String(format: "%02d", month))
-                        .font(.system(size: 54, weight: .light, design: .serif))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(month) 月").font(.system(size: 18, weight: .semibold, design: .serif))
-                        Text("\(items.count) 个瞬间").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Text("MEMORIES").font(.system(size: 9, weight: .bold)).tracking(2).foregroundStyle(.secondary)
-                }
-
-                Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("月历").font(.system(size: 16, weight: .semibold, design: .serif))
-                        Spacer()
-                        Text("\(year).\(String(format: "%02d", month))")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 7) {
-                        ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { entry in
+                        .font(.system(size: 43, weight: .light, design: .serif))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                    Text("\(month) 月 · \(items.count) 个瞬间")
+                        .font(.system(size: 11, weight: .medium, design: .serif))
+                        .foregroundStyle(.secondary)
+                    Rectangle().fill(Color.primary.opacity(0.14)).frame(height: 1)
+                    Text("月历")
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 5) {
+                        ForEach(Array(weekdays.enumerated()), id: \.offset) { entry in
                             Text(entry.element)
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 8, weight: .bold))
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                         }
-
                         ForEach(0..<leadingDays, id: \.self) { _ in
-                            Color.clear.frame(height: 56)
+                            Color.clear.frame(height: 38)
                         }
-
                         if dayCount > 0 {
                             ForEach(1...dayCount, id: \.self) { day in
                                 calendarDay(day, assets: grouped[day] ?? [])
                             }
                         }
                     }
+                    Text("\(year) · \(String(format: "%02d", month))")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 6)
                 }
-                .padding(14)
-                .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: 18))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 15)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.90))
 
-                HStack(alignment: .firstTextBaseline) {
-                    Text("本月照片").font(.system(size: 17, weight: .semibold, design: .serif))
-                    Spacer()
-                    Text("\(items.count) 张").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                .padding(.top, 2)
+            // Book gutter: a subtle recessed spine and paper edge.
+            Rectangle()
+                .fill(LinearGradient(
+                    colors: [Color.black.opacity(0.18), Color.black.opacity(0.035), Color.white.opacity(0.5)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ))
+                .frame(width: 8)
 
-                if items.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "wind").font(.system(size: 30, weight: .ultraLight))
-                        Text("这个月暂时没有照片").font(.system(size: 14, weight: .medium, design: .serif))
+            // Right leaf: photographic page.
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text("瞬间")
+                            .font(.system(size: 18, weight: .semibold, design: .serif))
+                        Spacer(minLength: 0)
+                        Text("\(items.count)")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 45)
-                } else {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
-                        ForEach(items, id: \.localIdentifier) { asset in
-                            Button {
-                                selectedAsset = asset
-                                showPhotoDetail = true
-                            } label: {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    AssetThumbnail(asset: asset, contentMode: .fill)
-                                        .frame(height: 158).clipShape(RoundedRectangle(cornerRadius: 9))
-                                    Text(asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? "日期未知")
-                                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    Rectangle().fill(Color.primary.opacity(0.14)).frame(height: 1)
+                    if items.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "wind")
+                                .font(.system(size: 25, weight: .ultraLight))
+                            Text("这个月还没有照片")
+                                .font(.system(size: 11, weight: .medium, design: .serif))
+                                .multilineTextAlignment(.center)
+                        }
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 35)
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible())], spacing: 10) {
+                            ForEach(items, id: \.localIdentifier) { asset in
+                                Button {
+                                    selectedAsset = asset
+                                    showPhotoDetail = true
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        AssetThumbnail(asset: asset, contentMode: .fill)
+                                            .frame(height: 112)
+                                            .frame(maxWidth: .infinity)
+                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        Text(asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? "日期未知")
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 15)
             }
-            .padding(.bottom, 34)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.97))
+            .rotation3DEffect(
+                .degrees(pageRotation),
+                axis: (x: 0, y: 1, z: 0),
+                anchor: .leading,
+                perspective: 0.38
+            )
+            .overlay(alignment: pageRotation < 0 ? .leading : .trailing) {
+                LinearGradient(
+                    colors: [.black.opacity(abs(pageRotation) / 700), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 24)
+                .allowsHitTesting(false)
+            }
         }
-        .modifier(AlbumScrollEdgeEffect())
+        .background(Color(red: 0.91, green: 0.88, blue: 0.81))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(red: 0.55, green: 0.49, blue: 0.37).opacity(0.2), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.13), radius: 18, x: 0, y: 9)
+        .accessibilityElement(children: .contain)
     }
 
     private func calendarDay(_ day: Int, assets: [PHAsset]) -> some View {
