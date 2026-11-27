@@ -114,8 +114,10 @@ struct YearbookView: View {
         let grouped = Dictionary(grouping: items) {
             calendar.component(.day, from: $0.creationDate ?? .distantPast)
         }
-        let weekdaySymbols = Array(calendar.veryShortStandaloneWeekdaySymbols[calendar.firstWeekday - 1...])
-            + Array(calendar.veryShortStandaloneWeekdaySymbols[..<calendar.firstWeekday - 1])
+        let allWeekdaySymbols = calendar.veryShortStandaloneWeekdaySymbols
+        let firstWeekdayIndex = max(0, min(calendar.firstWeekday - 1, allWeekdaySymbols.count - 1))
+        let weekdaySymbols = Array(allWeekdaySymbols[firstWeekdayIndex..<allWeekdaySymbols.count])
+            + Array(allWeekdaySymbols[0..<firstWeekdayIndex])
 
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
