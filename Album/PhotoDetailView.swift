@@ -11,6 +11,8 @@ struct PhotoDetailView: View {
     @State private var player: AVPlayer?
     @State private var videoLoadingFailed = false
     @State private var livePhotoLoadingFailed = false
+    @State private var isPressingLivePhoto = false
+    @State private var livePhotoLoaded = false
     @State private var videoRequestID: PHImageRequestID = PHInvalidImageRequestID
 
     private var isLivePhoto: Bool {
@@ -37,8 +39,24 @@ struct PhotoDetailView: View {
                                 }
                             }
                         } else if isLivePhoto && !livePhotoLoadingFailed {
-                            LivePhotoPlayerView(asset: asset) {
+                            LivePhotoPlayerView(asset: asset, isPressing: $isPressingLivePhoto, onLoaded: {
+                                livePhotoLoaded = true
+                            }, onFailure: {
                                 livePhotoLoadingFailed = true
+                            })
+                            .onLongPressGesture(minimumDuration: 0.22, pressing: { pressing in
+                                isPressingLivePhoto = pressing
+                            }, perform: {})
+                            .overlay {
+                                if !livePhotoLoaded {
+                                    VStack(spacing: 9) {
+                                        ProgressView().tint(.white)
+                                        Text("正在加载实况照片…")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.white.opacity(0.75))
+                                    }
+                                    .allowsHitTesting(false)
+                                }
                             }
                             .overlay(alignment: .bottom) {
                                 Label("按住照片播放实况", systemImage: "livephoto")
@@ -248,36 +266,47 @@ private struct PhotoDetailImageView: View {
 
 private struct LivePhotoPlayerView: UIViewRepresentable {
     let asset: PHAsset
+    @Binding var isPressing: Bool
+    let onLoaded: () -> Void
     let onFailure: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onFailure: onFailure)
+        Coordinator(onLoaded: onLoaded, onFailure: onFailure)
     }
 
     func makeUIView(context: Context) -> PHLivePhotoView {
         let view = PHLivePhotoView()
         view.backgroundColor = .black
         view.contentMode = .scaleAspectFit
+        view.clipsToBounds = true
         context.coordinator.requestLivePhoto(for: asset, in: view)
         return view
     }
 
     func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        context.coordinator.onLoaded = onLoaded
         context.coordinator.onFailure = onFailure
+        context.coordinator.updatePlayback(isPressing: isPressing, in: uiView)
     }
 
     static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
+        coordinator.stopPlayback(in: uiView)
         if coordinator.requestID != PHInvalidImageRequestID {
             PHImageManager.default().cancelImageRequest(coordinator.requestID)
+            coordinator.requestID = PHInvalidImageRequestID
         }
         uiView.livePhoto = nil
     }
 
     final class Coordinator {
         var requestID: PHImageRequestID = PHInvalidImageRequestID
+        var onLoaded: () -> Void
         var onFailure: () -> Void
+        private var isPlaying = false
+        private var hasLoaded = false
 
-        init(onFailure: @escaping () -> Void) {
+        init(onLoaded: @escaping () -> Void, onFailure: @escaping () -> Void) {
+            self.onLoaded = onLoaded
             self.onFailure = onFailure
         }
 
@@ -286,9 +315,6 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
             options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
 
-            // A screen-sized Live Photo is sufficient for the detail viewer.
-            // Avoid requesting the full original dimensions, which can create large
-            // transient memory spikes on high-resolution camera captures.
             let screenTarget = CGSize(width: 2048, height: 2048)
             requestID = PHImageManager.default().requestLivePhoto(
                 for: asset,
@@ -298,13 +324,40 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
             ) { [weak view, weak self] livePhoto, info in
                 DispatchQueue.main.async {
                     guard let self, let view else { return }
+                    if (info?[PHImageCancelledKey] as? Bool) == true { return }
                     if let livePhoto {
                         view.livePhoto = livePhoto
-                    } else if (info?[PHImageCancelledKey] as? Bool) != true {
+                        if !self.hasLoaded {
+                            self.hasLoaded = true
+                            self.onLoaded()
+                        }
+                        if self.requestID != PHInvalidImageRequestID {
+                            self.requestID = PHInvalidImageRequestID
+                        }
+                    } else if let error = info?[PHImageErrorKey] as? Error {
+                        _ = error
+                        self.onFailure()
+                    } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
                         self.onFailure()
                     }
                 }
             }
+        }
+
+        func updatePlayback(isPressing: Bool, in view: PHLivePhotoView) {
+            guard hasLoaded, view.livePhoto != nil else { return }
+            if isPressing && !isPlaying {
+                isPlaying = true
+                view.startPlayback(with: .full)
+            } else if !isPressing && isPlaying {
+                stopPlayback(in: view)
+            }
+        }
+
+        func stopPlayback(in view: PHLivePhotoView) {
+            guard isPlaying else { return }
+            isPlaying = false
+            view.stopPlayback()
         }
     }
 }
