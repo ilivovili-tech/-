@@ -57,6 +57,11 @@ struct YearbookView: View {
             }
             .navigationTitle("\(year) 年 · 照片书")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                if let latestMonth = (1...12).reversed().first(where: { !library.assets(in: year, month: $0).isEmpty }) {
+                    displayedMonth = latestMonth
+                }
+            }
             .sheet(isPresented: $showPhotoDetail) {
                 if let selectedAsset {
                     PhotoDetailView(asset: selectedAsset).environmentObject(library)
@@ -81,14 +86,36 @@ struct YearbookView: View {
             .disabled(displayedMonth == 1 || isTurningPage)
 
             Spacer()
-            VStack(spacing: 3) {
-                Text(String(format: "%02d / 12", displayedMonth))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .tracking(2)
-                Text("向左或向右滑动翻页")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+            Menu {
+                ForEach(1...12, id: \.self) { month in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            displayedMonth = month
+                        }
+                    } label: {
+                        let count = library.assets(in: year, month: month).count
+                        if month == displayedMonth {
+                            Label("\(month) 月 · \(count) 张", systemImage: "checkmark")
+                        } else {
+                            Text("\(month) 月 · \(count) 张")
+                        }
+                    }
+                }
+            } label: {
+                VStack(spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(String(format: "%02d / 12", displayedMonth))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .tracking(2)
+                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+                    }
+                    Text("选择月份 · 左右滑动翻页")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             Spacer()
 
             Button { turnPage(1) } label: {
@@ -111,8 +138,8 @@ struct YearbookView: View {
         let leadingDays = firstDate.map {
             (calendar.component(.weekday, from: $0) - calendar.firstWeekday + 7) % 7
         } ?? 0
-        let grouped = Dictionary(grouping: items) {
-            calendar.component(.day, from: $0.creationDate ?? .distantPast)
+        let grouped = Dictionary(grouping: items.filter { $0.creationDate != nil }) {
+            calendar.component(.day, from: $0.creationDate!)
         }
         let allWeekdaySymbols = calendar.veryShortStandaloneWeekdaySymbols
         let firstWeekdayIndex = max(0, min(calendar.firstWeekday - 1, allWeekdaySymbols.count - 1))
@@ -144,8 +171,8 @@ struct YearbookView: View {
                     }
 
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 7) {
-                        ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
-                            Text(symbol)
+                        ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { entry in
+                            Text(entry.element)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
