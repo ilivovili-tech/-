@@ -9,6 +9,8 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     @Published private(set) var albums: [PHAssetCollection] = []
     @Published private(set) var photoCount = 0
     @Published private(set) var videoCount = 0
+    private var assetsByYear: [Int: [PHAsset]] = [:]
+    private var assetsByYearAndMonth: [Int: [Int: [PHAsset]]] = [:]
     @Published var selectedAsset: PHAsset?
     private let manager = PHCachingImageManager()
 
@@ -30,7 +32,11 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     func requestAccess() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorization = status
-        if status == .authorized || status == .limited { loadLibrary() }
+        if status == .authorized || status == .limited {
+            loadLibrary()
+        } else {
+            clearLibrary()
+        }
     }
 
     func refresh() {
@@ -38,11 +44,17 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
         if authorization == .authorized || authorization == .limited {
             loadLibrary()
         } else {
-            assets = []
-            albums = []
-            photoCount = 0
-            videoCount = 0
+            clearLibrary()
         }
+    }
+
+    private func clearLibrary() {
+        assets = []
+        albums = []
+        photoCount = 0
+        videoCount = 0
+        assetsByYear = [:]
+        assetsByYearAndMonth = [:]
     }
 
     private func loadLibrary() {
@@ -52,14 +64,28 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
         var items: [PHAsset] = []
         var photos = 0
         var videos = 0
+        var byYear: [Int: [PHAsset]] = [:]
+        var byYearMonth: [Int: [Int: [PHAsset]]] = [:]
+        let calendar = Calendar.current
         result.enumerateObjects { asset, _, _ in
             items.append(asset)
             if asset.mediaType == .image { photos += 1 }
             else if asset.mediaType == .video { videos += 1 }
+            if let date = asset.creationDate {
+                let components = calendar.dateComponents([.year, .month], from: date)
+                if let year = components.year {
+                    byYear[year, default: []].append(asset)
+                    if let month = components.month {
+                        byYearMonth[year, default: [:]][month, default: []].append(asset)
+                    }
+                }
+            }
         }
         assets = items
         photoCount = photos
         videoCount = videos
+        assetsByYear = byYear
+        assetsByYearAndMonth = byYearMonth
 
         let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
         var found: [PHAssetCollection] = []
@@ -77,10 +103,11 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     }
 
     func assets(in year: Int) -> [PHAsset] {
-        assets.filter {
-            guard let date = $0.creationDate else { return false }
-            return Calendar.current.component(.year, from: date) == year
-        }
+        assetsByYear[year] ?? []
+    }
+
+    func assets(in year: Int, month: Int) -> [PHAsset] {
+        assetsByYearAndMonth[year]?[month] ?? []
     }
 
     func assets(in album: PHAssetCollection) -> [PHAsset] {
