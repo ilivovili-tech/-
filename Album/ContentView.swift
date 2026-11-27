@@ -88,17 +88,42 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("私藏时光").font(.system(size: 12, weight: .medium, design: .rounded)).tracking(2).foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "camera.macro")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("私藏时光")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .tracking(2)
+                }
+                .foregroundStyle(.secondary)
                 Text(tab == .years ? "我的照片书" : tab.rawValue)
                     .font(.system(size: 29, weight: .bold, design: .serif))
+                    .contentTransition(.opacity)
             }
             Spacer()
-            Image(systemName: "circle.grid.2x2")
-                .font(.system(size: 18, weight: .medium))
-                .frame(width: 44, height: 44)
-                .background(.white.opacity(0.7), in: Circle())
+            if library.authorization == .authorized || library.authorization == .limited {
+                HStack(spacing: 7) {
+                    Image(systemName: "photo.stack")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(library.photoCount.formatted())
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(ink)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 10)
+                .background(.white.opacity(0.78), in: Capsule())
+                .overlay(Capsule().stroke(ink.opacity(0.06), lineWidth: 1))
+                .accessibilityLabel("照片数量：\\(library.photoCount)")
+            } else {
+                Image(systemName: "photo.stack")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, height: 42)
+                    .background(.white.opacity(0.7), in: Circle())
+            }
         }
         .padding(.horizontal, 22)
         .padding(.top, 14)
@@ -298,20 +323,42 @@ struct ContentView: View {
     }
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             ForEach(AlbumTab.allCases, id: \.self) { item in
-                Button { withAnimation(.easeInOut(duration: 0.2)) { tab = item } } label: {
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) { tab = item }
+                } label: {
                     VStack(spacing: 5) {
-                        Image(systemName: item.symbol).font(.system(size: 18, weight: .medium))
-                        Text(item.rawValue).font(.system(size: 10, weight: .medium))
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 17, weight: tab == item ? .semibold : .regular))
+                            .symbolEffect(.bounce, value: tab == item)
+                        Text(item.rawValue)
+                            .font(.system(size: 10, weight: tab == item ? .semibold : .medium))
                     }
                     .foregroundStyle(tab == item ? ink : .secondary)
-                    .frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 8)
-                }.buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 9)
+                    .padding(.bottom, 7)
+                    .background {
+                        if tab == item {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .fill(paper)
+                                .padding(.horizontal, 5)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(tab == item ? .isSelected : [])
             }
         }
-        .background(.white.opacity(0.85))
-        .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.08)).frame(height: 1) }
+        .padding(.horizontal, 10)
+        .padding(.top, 7)
+        .background(.white.opacity(0.94))
+        .overlay(alignment: .top) {
+            Rectangle().fill(ink.opacity(0.07)).frame(height: 1)
+        }
+        .background(.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
     }
 
     private func statCard(title: String, value: String, icon: String) -> some View {
