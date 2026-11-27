@@ -185,7 +185,6 @@ struct OrganizerView: View {
                     .padding(.horizontal, 6)
                     .padding(.bottom, 20)
                 }
-
                 .modifier(AlbumScrollEdgeEffect())
             }
         }
