@@ -163,9 +163,13 @@ private struct LivePhotoPlayerView: UIViewRepresentable {
             options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
 
+            // A screen-sized Live Photo is sufficient for the detail viewer.
+            // Avoid requesting the full original dimensions, which can create large
+            // transient memory spikes on high-resolution camera captures.
+            let screenTarget = CGSize(width: 2048, height: 2048)
             requestID = PHImageManager.default().requestLivePhoto(
                 for: asset,
-                targetSize: PHImageManagerMaximumSize,
+                targetSize: screenTarget,
                 contentMode: .aspectFit,
                 options: options
             ) { [weak view, weak self] livePhoto, info in
