@@ -21,6 +21,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ilivovili.xiangce
-        PRODUCT_NAME: 相册
+        PRODUCT_NAME: XiangCe
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
