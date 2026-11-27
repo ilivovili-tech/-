@@ -50,9 +50,13 @@ struct AlbumDetailView: View {
                     Button("关闭") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showPhoto) {
+            // AlbumDetailView is itself presented as a sheet from ContentView.
+            // Present the photo viewer full-screen to avoid a nested sheet,
+            // which can produce a blank presentation on iOS.
+            .fullScreenCover(isPresented: $showPhoto) {
                 if let selectedAsset {
-                    PhotoDetailView(asset: selectedAsset).environmentObject(library)
+                    PhotoDetailView(asset: selectedAsset)
+                        .environmentObject(library)
                 }
             }
             .alert("无法打开相簿", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
