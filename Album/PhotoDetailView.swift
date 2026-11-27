@@ -68,6 +68,23 @@ struct PhotoDetailView: View {
                                     .padding(.bottom, 14)
                                     .allowsHitTesting(false)
                             }
+                        } else if isLivePhoto && livePhotoLoadingFailed {
+                            ZStack(alignment: .bottom) {
+                                PhotoDetailImageView(asset: asset)
+                                Button {
+                                    livePhotoLoaded = false
+                                    livePhotoLoadingFailed = false
+                                    isPressingLivePhoto = false
+                                } label: {
+                                    Label("重新加载实况", systemImage: "livephoto")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 9)
+                                        .background(.black.opacity(0.65), in: Capsule())
+                                }
+                                .padding(.bottom, 18)
+                            }
                         } else {
                             PhotoDetailImageView(asset: asset)
                         }
