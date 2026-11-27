@@ -24,6 +24,9 @@ struct ContentView: View {
     @State private var showDeleteConfirmation = false
     @State private var pendingDelete: PHAsset?
     @State private var errorMessage: String?
+    @State private var showYearbook = false
+    @State private var showPhotoDetail = false
+    @State private var activePhoto: PHAsset?
 
     private let ink = Color(red: 0.16, green: 0.19, blue: 0.17)
     private let paper = Color(red: 0.96, green: 0.95, blue: 0.91)
@@ -47,6 +50,14 @@ struct ContentView: View {
         }
         .foregroundStyle(ink)
         .task { library.refresh() }
+        .sheet(isPresented: $showYearbook) {
+            YearbookView(year: selectedYear).environmentObject(library)
+        }
+        .sheet(isPresented: $showPhotoDetail) {
+            if let activePhoto {
+                PhotoDetailView(asset: activePhoto).environmentObject(library)
+            }
+        }
         .alert("删除这张照片？", isPresented: $showDeleteConfirmation) {
             Button("取消", role: .cancel) { pendingDelete = nil }
             Button("移至最近删除", role: .destructive) {
@@ -145,8 +156,17 @@ struct ContentView: View {
             .frame(height: 208)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .rotation3DEffect(.degrees(-2), axis: (x: 0, y: 1, z: 0))
-            Text("轻触年度封面，翻阅这一年的照片故事。")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Button { showYearbook = true } label: {
+                HStack(spacing: 8) {
+                    Text("翻开 \(selectedYear) 年照片书")
+                    Image(systemName: "arrow.up.right")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 17).padding(.vertical, 11)
+                .background(ink, in: Capsule())
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding(18)
         .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 22))
@@ -272,7 +292,14 @@ struct ContentView: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
             ForEach(assets, id: \.localIdentifier) { asset in
                 ZStack(alignment: .topTrailing) {
-                    AssetThumbnail(asset: asset, contentMode: .fill).aspectRatio(1, contentMode: .fill).clipped()
+                    Button {
+                        activePhoto = asset
+                        showPhotoDetail = true
+                    } label: {
+                        AssetThumbnail(asset: asset, contentMode: .fill)
+                            .aspectRatio(1, contentMode: .fill).clipped()
+                    }
+                    .buttonStyle(.plain)
                     if asset.mediaType == .video {
                         Image(systemName: "play.fill").font(.system(size: 10)).foregroundStyle(.white).padding(7)
                     }
@@ -310,7 +337,7 @@ struct ContentView: View {
     }
 }
 
-private struct AssetThumbnail: View {
+struct AssetThumbnail: View {
     @EnvironmentObject private var library: PhotoLibraryStore
     let asset: PHAsset
     var contentMode: ContentMode = .fill
