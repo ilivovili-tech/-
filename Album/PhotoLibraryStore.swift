@@ -3,15 +3,20 @@ import Photos
 import UIKit
 
 @MainActor
-final class PhotoLibraryStore: ObservableObject, PHPhotoLibraryChangeObserver {
+final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published private(set) var authorization: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @Published private(set) var assets: [PHAsset] = []
     @Published private(set) var albums: [PHAssetCollection] = []
     @Published var selectedAsset: PHAsset?
     private let manager = PHCachingImageManager()
 
-    init() {
+    override init() {
+        super.init()
         PHPhotoLibrary.shared().register(self)
+    }
+
+    deinit {
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
     }
 
     nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
