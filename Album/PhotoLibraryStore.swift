@@ -54,6 +54,32 @@ final class PhotoLibraryStore: ObservableObject {
         }
     }
 
+    func assets(in album: PHAssetCollection) -> [PHAsset] {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let result = PHAsset.fetchAssets(in: album, options: options)
+        var items: [PHAsset] = []
+        result.enumerateObjects { asset, _, _ in items.append(asset) }
+        return items
+    }
+
+    func createAlbum(named title: String) async throws {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: trimmed)
+        }
+        refresh()
+    }
+
+    func add(_ asset: PHAsset, to album: PHAssetCollection) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            guard let request = PHAssetCollectionChangeRequest(for: album) else { return }
+            request.addAssets([asset] as NSArray)
+        }
+        refresh()
+    }
+
     func delete(_ asset: PHAsset) async throws {
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.deleteAssets([asset] as NSArray)
