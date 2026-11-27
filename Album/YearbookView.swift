@@ -5,6 +5,8 @@ struct YearbookView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
     @Environment(\.dismiss) private var dismiss
     let year: Int
+    @State private var selectedAsset: PHAsset?
+    @State private var showPhotoDetail = false
 
     private var yearAssets: [PHAsset] { library.assets(in: year) }
 
@@ -27,6 +29,11 @@ struct YearbookView: View {
             }
             .navigationTitle("\(year) 年 · 照片书")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showPhotoDetail) {
+                if let selectedAsset {
+                    PhotoDetailView(asset: selectedAsset).environmentObject(library)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
@@ -63,12 +70,18 @@ struct YearbookView: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
                         ForEach(items, id: \.localIdentifier) { asset in
-                            VStack(alignment: .leading, spacing: 5) {
-                                AssetThumbnail(asset: asset, contentMode: .fill)
-                                    .frame(height: 158).clipShape(RoundedRectangle(cornerRadius: 9))
-                                Text(asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? "日期未知")
-                                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                            Button {
+                                selectedAsset = asset
+                                showPhotoDetail = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    AssetThumbnail(asset: asset, contentMode: .fill)
+                                        .frame(height: 158).clipShape(RoundedRectangle(cornerRadius: 9))
+                                    Text(asset.creationDate?.formatted(date: .abbreviated, time: .omitted) ?? "日期未知")
+                                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
