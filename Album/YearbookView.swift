@@ -133,9 +133,11 @@ struct YearbookView: View {
         let leadingDays = firstDate.map {
             (calendar.component(.weekday, from: $0) - calendar.firstWeekday + 7) % 7
         } ?? 0
-        let grouped = Dictionary(grouping: items.filter { $0.creationDate != nil }) {
-            calendar.component(.day, from: $0.creationDate!)
+        let datedItems = items.compactMap { asset -> (Int, PHAsset)? in
+            guard let date = asset.creationDate else { return nil }
+            return (calendar.component(.day, from: date), asset)
         }
+        let grouped = Dictionary(grouping: datedItems, by: { $0.0 }).mapValues { $0.map(\.1) }
         let symbols = calendar.veryShortStandaloneWeekdaySymbols
         let firstIndex = max(0, min(calendar.firstWeekday - 1, symbols.count - 1))
         let weekdays = Array(symbols[firstIndex..<symbols.count]) + Array(symbols[0..<firstIndex])
@@ -154,7 +156,7 @@ struct YearbookView: View {
                     Rectangle().fill(Color.primary.opacity(0.14)).frame(height: 1)
                     Text("月历")
                         .font(.system(size: 15, weight: .semibold, design: .serif))
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 5) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 3) {
                         ForEach(Array(weekdays.enumerated()), id: \.offset) { entry in
                             Text(entry.element)
                                 .font(.system(size: 8, weight: .bold))
@@ -162,7 +164,7 @@ struct YearbookView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         ForEach(0..<leadingDays, id: \.self) { _ in
-                            Color.clear.frame(height: 38)
+                            Color.clear.frame(height: 32)
                         }
                         if dayCount > 0 {
                             ForEach(1...dayCount, id: \.self) { day in
@@ -277,7 +279,7 @@ struct YearbookView: View {
             VStack(spacing: 3) {
                 if let cover = assets.first {
                     AssetThumbnail(asset: cover, contentMode: .fill)
-                        .frame(width: 30, height: 30)
+                        .frame(width: 23, height: 23)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
                 } else {
@@ -296,11 +298,11 @@ struct YearbookView: View {
                         .font(.system(size: 7, weight: .medium))
                         .foregroundStyle(.secondary)
                 } else {
-                    Color.clear.frame(height: 8)
+                    Color.clear.frame(height: 5)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 49)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
