@@ -21,33 +21,7 @@ struct YearbookView: View {
                     ContentUnavailableView("这一年还没有照片", systemImage: "book.closed", description: Text("选择其他年份，继续浏览你的时光。"))
                 } else {
                     VStack(spacing: 10) {
-                        HStack {
-                            Button { turnPage(-1) } label: {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 40, height: 40)
-                                    .background(.white.opacity(0.8), in: Circle())
-                            }
-                            .disabled(displayedMonth == 1 || isTurningPage)
-                            Spacer()
-                            VStack(spacing: 3) {
-                                Text(String(format: "%02d / 12", displayedMonth))
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .tracking(2)
-                                Text("向左或向右滑动翻页")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button { turnPage(1) } label: {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 40, height: 40)
-                                    .background(.white.opacity(0.8), in: Circle())
-                            }
-                            .disabled(displayedMonth == 12 || isTurningPage)
-                        }
-                        .buttonStyle(.plain)
+                        monthNavigation
                         monthPage(displayedMonth)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .rotation3DEffect(
@@ -69,7 +43,7 @@ struct YearbookView: View {
                                     }
                             )
                         HStack(spacing: 5) {
-                            ForEach(Array(1...12), id: \.self) { month in
+                            ForEach(1...12, id: \.self) { month in
                                 Capsule()
                                     .fill(month == displayedMonth ? Color.primary : Color.primary.opacity(0.15))
                                     .frame(height: 3)
@@ -96,9 +70,53 @@ struct YearbookView: View {
         }
     }
 
+    private var monthNavigation: some View {
+        HStack {
+            Button { turnPage(-1) } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.8), in: Circle())
+            }
+            .disabled(displayedMonth == 1 || isTurningPage)
+
+            Spacer()
+            VStack(spacing: 3) {
+                Text(String(format: "%02d / 12", displayedMonth))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .tracking(2)
+                Text("向左或向右滑动翻页")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+
+            Button { turnPage(1) } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.8), in: Circle())
+            }
+            .disabled(displayedMonth == 12 || isTurningPage)
+        }
+        .buttonStyle(.plain)
+    }
+
     @ViewBuilder
     private func monthPage(_ month: Int) -> some View {
         let items = library.assets(in: year, month: month)
+        let calendar = Calendar.current
+        let firstDate = calendar.date(from: DateComponents(year: year, month: month, day: 1))
+        let dayCount = firstDate.flatMap { calendar.range(of: .day, in: .month, for: $0)?.count } ?? 0
+        let leadingDays = firstDate.map {
+            (calendar.component(.weekday, from: $0) - calendar.firstWeekday + 7) % 7
+        } ?? 0
+        let grouped = Dictionary(grouping: items) {
+            calendar.component(.day, from: $0.creationDate ?? .distantPast)
+        }
+        let weekdaySymbols = Array(calendar.veryShortStandaloneWeekdaySymbols[calendar.firstWeekday - 1...])
+            + Array(calendar.veryShortStandaloneWeekdaySymbols[..<calendar.firstWeekday - 1])
+
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .lastTextBaseline) {
@@ -111,13 +129,53 @@ struct YearbookView: View {
                     Spacer()
                     Text("MEMORIES").font(.system(size: 9, weight: .bold)).tracking(2).foregroundStyle(.secondary)
                 }
+
                 Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("月历").font(.system(size: 16, weight: .semibold, design: .serif))
+                        Spacer()
+                        Text("\(year).\(String(format: "%02d", month))")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 7) {
+                        ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                            Text(symbol)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        ForEach(0..<leadingDays, id: \.self) { _ in
+                            Color.clear.frame(height: 56)
+                        }
+
+                        if dayCount > 0 {
+                            ForEach(1...dayCount, id: \.self) { day in
+                                calendarDay(day, assets: grouped[day] ?? [])
+                            }
+                        }
+                    }
+                }
+                .padding(14)
+                .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: 18))
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text("本月照片").font(.system(size: 17, weight: .semibold, design: .serif))
+                    Spacer()
+                    Text("\(items.count) 张").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .padding(.top, 2)
+
                 if items.isEmpty {
                     VStack(spacing: 10) {
                         Image(systemName: "wind").font(.system(size: 30, weight: .ultraLight))
                         Text("这个月暂时没有照片").font(.system(size: 14, weight: .medium, design: .serif))
                     }
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 60)
+                    .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 45)
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
                         ForEach(items, id: \.localIdentifier) { asset in
@@ -139,6 +197,46 @@ struct YearbookView: View {
             }
             .padding(.bottom, 34)
         }
+    }
+
+    private func calendarDay(_ day: Int, assets: [PHAsset]) -> some View {
+        Button {
+            guard let asset = assets.first else { return }
+            selectedAsset = asset
+            showPhotoDetail = true
+        } label: {
+            VStack(spacing: 3) {
+                if let cover = assets.first {
+                    AssetThumbnail(asset: cover, contentMode: .fill)
+                        .frame(width: 30, height: 30)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                } else {
+                    Text("\(day)")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                }
+
+                Text("\(day)")
+                    .font(.system(size: 9, weight: assets.isEmpty ? .regular : .semibold, design: .rounded))
+                    .foregroundStyle(assets.isEmpty ? Color.secondary : Color.primary)
+
+                if assets.count > 1 {
+                    Text("+\(assets.count - 1)")
+                        .font(.system(size: 7, weight: .medium))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Color.clear.frame(height: 8)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(assets.isEmpty)
+        .accessibilityLabel(assets.isEmpty ? "\(day) 日，无照片" : "\(day) 日，\(assets.count) 张照片")
     }
 
     private func turnPage(_ direction: Int) {
