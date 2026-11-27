@@ -81,8 +81,13 @@ final class PhotoLibraryStore: ObservableObject {
     }
 
     func delete(_ asset: PHAsset) async throws {
+        try await delete([asset])
+    }
+
+    func delete(_ selectedAssets: [PHAsset]) async throws {
+        guard !selectedAssets.isEmpty else { return }
         try await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.deleteAssets([asset] as NSArray)
+            PHAssetChangeRequest.deleteAssets(selectedAssets as NSArray)
         }
         refresh()
     }
