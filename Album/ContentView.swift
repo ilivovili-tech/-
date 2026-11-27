@@ -68,13 +68,11 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showYearbook) {
             YearbookView(year: selectedYear)
                 .environmentObject(library)
-                .ignoresSafeArea(edges: .all)
         }
         .fullScreenCover(isPresented: $showPhotoDetail) {
             if let activePhoto {
                 PhotoDetailView(asset: activePhoto)
                     .environmentObject(library)
-                    .ignoresSafeArea(edges: .all)
             }
         }
         .sheet(isPresented: $showCreateAlbum) {
