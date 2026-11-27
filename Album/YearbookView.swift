@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import UIKit
 
 struct YearbookView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
@@ -85,6 +86,7 @@ struct YearbookView: View {
             Menu {
                 ForEach(1...12, id: \.self) { month in
                     Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
                         withAnimation(.easeInOut(duration: 0.2)) {
                             displayedMonth = month
                         }
@@ -314,6 +316,7 @@ struct YearbookView: View {
         let nextMonth = displayedMonth + direction
         guard (1...12).contains(nextMonth), !isTurningPage else { return }
         isTurningPage = true
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.7)
         withAnimation(.easeIn(duration: 0.16)) {
             pageRotation = direction > 0 ? -72 : 72
         }
