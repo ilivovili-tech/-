@@ -44,6 +44,7 @@ struct PhotoDetailView: View {
                             }, onFailure: {
                                 livePhotoLoadingFailed = true
                             })
+                            .id(asset.localIdentifier)
                             .onLongPressGesture(minimumDuration: 0.22, pressing: { pressing in
                                 isPressingLivePhoto = pressing
                             }, perform: {})
@@ -71,6 +72,8 @@ struct PhotoDetailView: View {
                         } else if isLivePhoto && livePhotoLoadingFailed {
                             ZStack(alignment: .bottom) {
                                 PhotoDetailImageView(asset: asset)
+                                .id(asset.localIdentifier)
+                                    .id(asset.localIdentifier)
                                 Button {
                                     livePhotoLoaded = false
                                     livePhotoLoadingFailed = false
