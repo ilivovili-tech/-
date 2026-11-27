@@ -246,6 +246,7 @@ struct YearbookView: View {
             }
             .padding(.bottom, 34)
         }
+        .modifier(AlbumScrollEdgeEffect())
     }
 
     private func calendarDay(_ day: Int, assets: [PHAsset]) -> some View {
