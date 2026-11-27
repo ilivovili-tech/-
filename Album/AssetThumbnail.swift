@@ -1,14 +1,15 @@
 import SwiftUI
 import Photos
 
-/// A reusable PhotoKit thumbnail view. The image is requested at the
-/// rendered size instead of decoding the full-resolution asset.
+/// A reusable PhotoKit thumbnail view that requests only the rendered pixel size.
 struct AssetThumbnail: View {
     let asset: PHAsset
     let contentMode: ContentMode
 
+    @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
     @State private var requestID: PHImageRequestID = PHInvalidImageRequestID
+    @State private var requestToken = UUID()
 
     var body: some View {
         GeometryReader { geometry in
@@ -47,11 +48,12 @@ struct AssetThumbnail: View {
         cancelRequest()
         image = nil
 
-        let scale = UIScreen.main.scale
+        let scale = max(1, displayScale)
         let targetSize = CGSize(
             width: max(1, size.width * scale),
             height: max(1, size.height * scale)
         )
+        let token = requestToken
 
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
@@ -66,6 +68,7 @@ struct AssetThumbnail: View {
         ) { result, info in
             if (info?[PHImageCancelledKey] as? Bool) == true { return }
             DispatchQueue.main.async {
+                guard token == requestToken else { return }
                 if let result {
                     image = result
                 }
@@ -74,6 +77,7 @@ struct AssetThumbnail: View {
     }
 
     private func cancelRequest() {
+        requestToken = UUID()
         guard requestID != PHInvalidImageRequestID else { return }
         PHImageManager.default().cancelImageRequest(requestID)
         requestID = PHInvalidImageRequestID
