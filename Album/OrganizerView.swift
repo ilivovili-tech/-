@@ -186,7 +186,8 @@ struct OrganizerView: View {
                     .padding(.bottom, 20)
                 }
 
-                .modifier(AlbumScrollEdgeEffect())            }
+                .modifier(AlbumScrollEdgeEffect())
+            }
         }
         .onChange(of: library.assets.map(\.localIdentifier)) { _, identifiers in
             selectedIDs.formIntersection(Set(identifiers))
