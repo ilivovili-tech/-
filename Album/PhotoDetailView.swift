@@ -51,7 +51,7 @@ struct PhotoDetailView: View {
                                     .allowsHitTesting(false)
                             }
                         } else {
-                            AssetThumbnail(asset: asset, contentMode: .fit)
+                            PhotoDetailImageView(asset: asset)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -130,6 +130,119 @@ struct PhotoDetailView: View {
                 }
             }
         }
+    }
+}
+
+
+
+/// Full-size PhotoKit viewer with explicit cloud-download, loading and retry states.
+private struct PhotoDetailImageView: View {
+    let asset: PHAsset
+    @Environment(\.displayScale) private var displayScale
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var failed = false
+    @State private var requestID: PHImageRequestID = PHInvalidImageRequestID
+    @State private var requestToken = UUID()
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                } else if failed {
+                    VStack(spacing: 12) {
+                        Image(systemName: "icloud.slash")
+                            .font(.system(size: 32, weight: .light))
+                        Text("照片加载失败")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("原片可能尚未从 iCloud 下载，请检查网络后重试。")
+                            .font(.system(size: 12))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white.opacity(0.7))
+                        Button("重新加载") { load(size: geometry.size) }
+                            .font(.system(size: 14, weight: .semibold))
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 10)
+                            .background(.white.opacity(0.16), in: Capsule())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(24)
+                } else {
+                    VStack(spacing: 10) {
+                        ProgressView().tint(.white)
+                        Text("正在加载原始照片…")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .onAppear { load(size: geometry.size) }
+            .onChange(of: geometry.size) { _, newSize in
+                if image == nil { load(size: newSize) }
+            }
+            .onDisappear { cancel() }
+        }
+    }
+
+    private func load(size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        cancel()
+        image = nil
+        failed = false
+        isLoading = true
+        let token = requestToken
+        let scale = max(1, displayScale)
+        let target = CGSize(width: max(1, size.width * scale), height: max(1, size.height * scale))
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
+        options.version = .current
+
+        requestID = PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: target,
+            contentMode: .aspectFit,
+            options: options
+        ) { result, info in
+            DispatchQueue.main.async {
+                guard token == requestToken else { return }
+                if (info?[PHImageCancelledKey] as? Bool) == true { return }
+                if let error = info?[PHImageErrorKey] as? Error {
+                    _ = error
+                    image = nil
+                    failed = true
+                    isLoading = false
+                    requestID = PHInvalidImageRequestID
+                    return
+                }
+                if let result, (info?[PHImageResultIsDegradedKey] as? Bool) != true {
+                    image = result
+                    failed = false
+                    isLoading = false
+                    requestID = PHInvalidImageRequestID
+                } else if result == nil,
+                          (info?[PHImageResultIsInCloudKey] as? Bool) != true {
+                    failed = true
+                    isLoading = false
+                    requestID = PHInvalidImageRequestID
+                }
+            }
+        }
+    }
+
+    private func cancel() {
+        requestToken = UUID()
+        guard requestID != PHInvalidImageRequestID else { return }
+        PHImageManager.default().cancelImageRequest(requestID)
+        requestID = PHInvalidImageRequestID
     }
 }
 
