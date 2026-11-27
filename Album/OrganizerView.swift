@@ -7,9 +7,15 @@ private enum OrganizerFilter: String, CaseIterable {
     case bursts = "连拍"
 }
 
+private enum OrganizerSort: String, CaseIterable {
+    case newest = "最新拍摄"
+    case oldest = "最早拍摄"
+}
+
 struct OrganizerView: View {
     @EnvironmentObject private var library: PhotoLibraryStore
     @State private var filter: OrganizerFilter = .nearby
+    @State private var sort: OrganizerSort = .newest
     @State private var selectedIDs: Set<String> = []
     @State private var showDeleteConfirmation = false
     @State private var activeAsset: PHAsset?
@@ -35,15 +41,32 @@ struct OrganizerView: View {
         }
     }
 
+    private var sortedAssets: [PHAsset] {
+        visibleAssets.sorted { lhs, rhs in
+            let leftDate = lhs.creationDate ?? .distantPast
+            let rightDate = rhs.creationDate ?? .distantPast
+            switch sort {
+            case .newest:
+                return leftDate == rightDate
+                    ? lhs.localIdentifier < rhs.localIdentifier
+                    : leftDate > rightDate
+            case .oldest:
+                return leftDate == rightDate
+                    ? lhs.localIdentifier < rhs.localIdentifier
+                    : leftDate < rightDate
+            }
+        }
+    }
+
     private var selectedAssets: [PHAsset] {
-        visibleAssets.filter { selectedIDs.contains($0.localIdentifier) }
+        sortedAssets.filter { selectedIDs.contains($0.localIdentifier) }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("整理你的图库").font(.system(size: 23, weight: .bold, design: .serif))
-                Text("先筛选和预览，再决定是否批量删除。所有删除操作都会经过确认。")
+                Text("右滑或长按照片加入待删除列表；确认前不会删除任何内容。")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 Picker("分类", selection: $filter) {
                     ForEach(OrganizerFilter.allCases, id: \.self) { item in
@@ -58,9 +81,26 @@ struct OrganizerView: View {
             .padding(.bottom, 12)
 
             HStack {
-                Text("\(visibleAssets.count) 个项目")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(visibleAssets.count) 个项目")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    if !selectedIDs.isEmpty {
+                        Text("已暂存 \(selectedIDs.count) 个待删除项目")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.red)
+                    }
+                }
                 Spacer()
+                Menu {
+                    Picker("排序方式", selection: $sort) {
+                        ForEach(OrganizerSort.allCases, id: \.self) { item in
+                            Text(item.rawValue).tag(item)
+                        }
+                    }
+                } label: {
+                    Label("排序", systemImage: "arrow.up.arrow.down")
+                        .font(.system(size: 12, weight: .medium))
+                }
                 if !selectedIDs.isEmpty {
                     Button("取消选择") { selectedIDs.removeAll() }
                         .font(.system(size: 12))
@@ -89,7 +129,7 @@ struct OrganizerView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                        ForEach(visibleAssets, id: \.localIdentifier) { asset in
+                        ForEach(sortedAssets, id: \.localIdentifier) { asset in
                             Button {
                                 if selectedIDs.isEmpty {
                                     activeAsset = asset
@@ -122,7 +162,21 @@ struct OrganizerView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 28)
+                                    .onEnded { value in
+                                        let horizontal = value.translation.width
+                                        let vertical = value.translation.height
+                                        guard horizontal > 55, abs(horizontal) > abs(vertical) else { return }
+                                        if !selectedIDs.contains(asset.localIdentifier) {
+                                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                                toggle(asset)
+                                            }
+                                        }
+                                    }
+                            )
                             .highPriorityGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in toggle(asset) })
+                            .accessibilityLabel(selectedIDs.contains(asset.localIdentifier) ? "已加入待删除列表" : "照片，右滑或长按可加入待删除列表")
                         }
                     }
                     .padding(.horizontal, 6)
