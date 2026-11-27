@@ -82,9 +82,10 @@ struct YearbookView: View {
                     displayedMonth = latestMonth
                 }
             }
-            .sheet(isPresented: $showPhotoDetail) {
+            .fullScreenCover(isPresented: $showPhotoDetail) {
                 if let selectedAsset {
-                    PhotoDetailView(asset: selectedAsset).environmentObject(library)
+                    PhotoDetailView(asset: selectedAsset)
+                        .environmentObject(library)
                 }
             }
             .toolbar {
