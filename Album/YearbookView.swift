@@ -24,13 +24,32 @@ struct YearbookView: View {
                         monthNavigation
                         monthPage(displayedMonth)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white.opacity(0.82))
+                                    .shadow(color: .black.opacity(0.10), radius: 18, x: 0, y: 9)
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color(red: 0.55, green: 0.49, blue: 0.37).opacity(0.13), lineWidth: 1)
+                            }
+                            .overlay(alignment: .leading) {
+                                LinearGradient(
+                                    colors: [Color.black.opacity(0.10), Color.clear],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .frame(width: 9)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .allowsHitTesting(false)
+                            }
                             .rotation3DEffect(
                                 .degrees(pageRotation),
                                 axis: (x: 0, y: 1, z: 0),
                                 anchor: pageRotation < 0 ? .leading : .trailing,
-                                perspective: 0.65
+                                perspective: 0.42
                             )
-                            .shadow(color: .black.opacity(abs(pageRotation) / 700), radius: 12, x: 0, y: 5)
+                            .shadow(color: .black.opacity(abs(pageRotation) / 520), radius: 16, x: 0, y: 7)
                             .contentShape(Rectangle())
                             .simultaneousGesture(
                                 DragGesture(minimumDistance: 25)
@@ -53,6 +72,7 @@ struct YearbookView: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 12)
+                    .padding(.bottom, 8)
                 }
             }
             .navigationTitle("\(year) 年 · 照片书")
