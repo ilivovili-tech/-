@@ -39,15 +39,22 @@ struct PhotoDetailView: View {
                                 }
                             }
                         } else if isLivePhoto && !livePhotoLoadingFailed {
-                            LivePhotoPlayerView(asset: asset, isPressing: $isPressingLivePhoto, onLoaded: {
-                                livePhotoLoaded = true
-                            }, onFailure: {
-                                livePhotoLoadingFailed = true
-                            })
-                            .id(asset.localIdentifier)
-                            .onLongPressGesture(minimumDuration: 0.22, pressing: { pressing in
-                                isPressingLivePhoto = pressing
-                            }, perform: {})
+                            ZStack {
+                                LivePhotoPlayerView(asset: asset, isPressing: $isPressingLivePhoto, onLoaded: {
+                                    livePhotoLoaded = true
+                                }, onFailure: {
+                                    livePhotoLoadingFailed = true
+                                })
+                                .id(asset.localIdentifier)
+                                // Playback is controlled by the SwiftUI press gesture below.
+                                .allowsHitTesting(false)
+
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onLongPressGesture(minimumDuration: 0.2, pressing: { pressing in
+                                        isPressingLivePhoto = pressing
+                                    }, perform: {})
+                            }
                             .overlay {
                                 if !livePhotoLoaded {
                                     VStack(spacing: 9) {
@@ -173,16 +180,16 @@ struct PhotoDetailView: View {
 
 
 
-/// Full-size PhotoKit viewer. Keeps the request alive through SwiftUI layout changes
-/// and displays degraded previews while the final/iCloud image is being delivered.
+/// Two-stage PhotoKit viewer: a fast local preview is displayed first,
+/// then replaced by the high-quality/iCloud image when it arrives.
 private struct PhotoDetailImageView: View {
     let asset: PHAsset
-    @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
-    @State private var isLoading = true
     @State private var failed = false
-    @State private var requestID: PHImageRequestID = PHInvalidImageRequestID
+    @State private var previewRequestID: PHImageRequestID = PHInvalidImageRequestID
+    @State private var finalRequestID: PHImageRequestID = PHInvalidImageRequestID
     @State private var requestToken = UUID()
+    @State private var receivedFinalImage = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -204,7 +211,7 @@ private struct PhotoDetailImageView: View {
                             .font(.system(size: 12))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.7))
-                        Button("重新加载") { load(size: geometry.size, force: true) }
+                        Button("重新加载") { load() }
                             .font(.system(size: 14, weight: .semibold))
                             .padding(.horizontal, 18)
                             .padding(.vertical, 10)
@@ -215,92 +222,103 @@ private struct PhotoDetailImageView: View {
                 } else {
                     VStack(spacing: 10) {
                         ProgressView().tint(.white)
-                        Text("正在加载原始照片…")
+                        Text("正在加载照片…")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.7))
                     }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .onAppear { load(size: geometry.size) }
-            .onChange(of: geometry.size) { _, newSize in
-                // Presentation animations can change GeometryReader size several times.
-                // Never cancel a valid PhotoKit request just because layout is settling.
-                if image == nil && requestID == PHInvalidImageRequestID && !failed {
-                    load(size: newSize)
-                }
-            }
+            .onAppear { load() }
             .onDisappear { cancel() }
         }
     }
 
-    private func load(size: CGSize, force: Bool = false) {
-        guard size.width > 0, size.height > 0 else { return }
-        if !force && requestID != PHInvalidImageRequestID { return }
+    private func load() {
         cancel()
-
         image = nil
         failed = false
-        isLoading = true
+        receivedFinalImage = false
         let token = requestToken
-        let scale = max(1, displayScale)
-        // Request enough pixels for a sharp full-screen image without depending on
-        // transient zero/small geometry values during the cover transition.
-        let target = CGSize(
-            width: max(1200, size.width * scale),
-            height: max(1600, size.height * scale)
-        )
+        let manager = PHImageManager.default()
 
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
-        options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
-        options.version = .current
-        options.progressHandler = { _, error, _, _ in
+        // First request a small, local preview. This avoids an empty viewer while
+        // the original file is being fetched from iCloud.
+        let previewOptions = PHImageRequestOptions()
+        previewOptions.deliveryMode = .fastFormat
+        previewOptions.resizeMode = .fast
+        previewOptions.isNetworkAccessAllowed = false
+        previewOptions.version = .current
+
+        previewRequestID = manager.requestImage(
+            for: asset,
+            targetSize: CGSize(width: 1200, height: 1200),
+            contentMode: .aspectFit,
+            options: previewOptions
+        ) { result, info in
+            DispatchQueue.main.async {
+                guard token == requestToken,
+                      (info?[PHImageCancelledKey] as? Bool) != true,
+                      !receivedFinalImage else { return }
+                if let result {
+                    image = result
+                    failed = false
+                }
+            }
+        }
+
+        // Then request the best available rendition, allowing iCloud download.
+        let finalOptions = PHImageRequestOptions()
+        finalOptions.deliveryMode = .highQualityFormat
+        finalOptions.resizeMode = .fast
+        finalOptions.isNetworkAccessAllowed = true
+        finalOptions.version = .current
+        finalOptions.progressHandler = { _, error, _, _ in
             guard error == nil else {
                 DispatchQueue.main.async {
-                    guard token == requestToken else { return }
+                    guard token == requestToken, image == nil else { return }
                     failed = true
-                    isLoading = false
-                    requestID = PHInvalidImageRequestID
                 }
                 return
             }
         }
 
-        requestID = PHImageManager.default().requestImage(
+        let longestSide = max(CGFloat(asset.pixelWidth), CGFloat(asset.pixelHeight), 1)
+        let scale = min(1, 4096 / longestSide)
+        let targetSize = CGSize(
+            width: max(1, CGFloat(asset.pixelWidth) * scale),
+            height: max(1, CGFloat(asset.pixelHeight) * scale)
+        )
+
+        finalRequestID = manager.requestImage(
             for: asset,
-            targetSize: target,
+            targetSize: targetSize,
             contentMode: .aspectFit,
-            options: options
+            options: finalOptions
         ) { result, info in
             DispatchQueue.main.async {
-                guard token == requestToken else { return }
-                if (info?[PHImageCancelledKey] as? Bool) == true { return }
+                guard token == requestToken,
+                      (info?[PHImageCancelledKey] as? Bool) != true else { return }
 
                 if let error = info?[PHImageErrorKey] as? Error {
                     _ = error
-                    if image == nil {
-                        failed = true
-                    }
-                    isLoading = false
-                    requestID = PHInvalidImageRequestID
+                    if image == nil { failed = true }
+                    finalRequestID = PHInvalidImageRequestID
                     return
                 }
 
                 if let result {
-                    // Opportunistic delivery may first provide a quick preview.
-                    // Show it immediately instead of leaving the viewer black.
                     image = result
                     failed = false
-                    if (info?[PHImageResultIsDegradedKey] as? Bool) != true {
-                        isLoading = false
-                        requestID = PHInvalidImageRequestID
+                    receivedFinalImage = true
+                    finalRequestID = PHInvalidImageRequestID
+                    if previewRequestID != PHInvalidImageRequestID {
+                        manager.cancelImageRequest(previewRequestID)
+                        previewRequestID = PHInvalidImageRequestID
                     }
                 } else if (info?[PHImageResultIsInCloudKey] as? Bool) != true {
-                    failed = true
-                    isLoading = false
-                    requestID = PHInvalidImageRequestID
+                    if image == nil { failed = true }
+                    finalRequestID = PHInvalidImageRequestID
                 }
             }
         }
@@ -308,9 +326,15 @@ private struct PhotoDetailImageView: View {
 
     private func cancel() {
         requestToken = UUID()
-        guard requestID != PHInvalidImageRequestID else { return }
-        PHImageManager.default().cancelImageRequest(requestID)
-        requestID = PHInvalidImageRequestID
+        let manager = PHImageManager.default()
+        if previewRequestID != PHInvalidImageRequestID {
+            manager.cancelImageRequest(previewRequestID)
+            previewRequestID = PHInvalidImageRequestID
+        }
+        if finalRequestID != PHInvalidImageRequestID {
+            manager.cancelImageRequest(finalRequestID)
+            finalRequestID = PHInvalidImageRequestID
+        }
     }
 }
 
