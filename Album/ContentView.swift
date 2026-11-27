@@ -128,14 +128,20 @@ struct ContentView: View {
     private var yearBook: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Button { selectedYear -= 1 } label: { Image(systemName: "chevron.left") }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) { selectedYear = max(1900, selectedYear - 1) }
+                } label: { Image(systemName: "chevron.left") }
+                .disabled(selectedYear <= 1900)
                 Spacer()
                 VStack(spacing: 2) {
                     Text("\(selectedYear)").font(.system(size: 34, weight: .bold, design: .serif))
                     Text("YEARBOOK · 年度记忆").font(.system(size: 9, weight: .semibold)).tracking(2)
                 }
                 Spacer()
-                Button { selectedYear = Calendar.current.component(.year, from: Date()) } label: { Image(systemName: "chevron.right") }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) { selectedYear = min(Calendar.current.component(.year, from: Date()), selectedYear + 1) }
+                } label: { Image(systemName: "chevron.right") }
+                .disabled(selectedYear >= Calendar.current.component(.year, from: Date()))
             }
             .buttonStyle(.plain)
             ZStack {
@@ -346,17 +352,15 @@ struct ContentView: View {
         }
     }
 
-    private func organizeRow(_ title: String, detail: String, icon: String) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon).font(.system(size: 21)).frame(width: 48, height: 48)
-                .background(paper, in: RoundedRectangle(cornerRadius: 14))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 15, weight: .semibold))
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+    private func statCard(title: String, value: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value).font(.system(size: 20, weight: .bold, design: .serif))
+                Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(.tertiary)
-        }.padding(13).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 17))
+        }.padding(15).frame(maxWidth: .infinity).background(.white.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func emptyState(_ title: String, subtitle: String, icon: String) -> some View {
@@ -365,30 +369,5 @@ struct ContentView: View {
             Text(title).font(.system(size: 17, weight: .semibold, design: .serif))
             Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }.frame(maxWidth: .infinity).padding(32).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
-    }
-}
-
-struct AssetThumbnail: View {
-    @EnvironmentObject private var library: PhotoLibraryStore
-    let asset: PHAsset
-    var contentMode: ContentMode = .fill
-    @State private var image: UIImage?
-
-    var body: some View {
-        GeometryReader { proxy in
-            Group {
-                if let image {
-                    Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
-                } else {
-                    Rectangle().fill(Color(red: 0.86, green: 0.85, blue: 0.80))
-                        .overlay(Image(systemName: "photo").foregroundStyle(.white.opacity(0.8)))
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .clipped()
-            .task(id: asset.localIdentifier) {
-                library.image(for: asset, size: CGSize(width: max(proxy.size.width, 100) * 2, height: max(proxy.size.height, 100) * 2)) { image = $0 }
-            }
-        }
     }
 }
