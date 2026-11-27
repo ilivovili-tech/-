@@ -58,7 +58,9 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 tabBar
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(ink)
         .task { library.refresh() }
         .sheet(isPresented: $showYearbook) {
