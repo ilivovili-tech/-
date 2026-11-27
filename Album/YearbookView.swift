@@ -92,6 +92,7 @@ struct YearbookView: View {
                     Button("完成") { dismiss() }
                 }
             }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 
