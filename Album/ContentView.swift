@@ -56,7 +56,9 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                tabBar
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    tabBar
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -384,12 +386,20 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.top, 7)
-        .background(.white.opacity(0.94))
-        .overlay(alignment: .top) {
-            Rectangle().fill(ink.opacity(0.07)).frame(height: 1)
+        .padding(.vertical, 7)
+        .background {
+            if #available(iOS 26.0, *) {
+                Capsule().fill(.clear).glassEffect(.regular, in: Capsule())
+            } else {
+                Capsule().fill(.ultraThinMaterial)
+            }
         }
-        .background { Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom) }
+        .overlay {
+            Capsule().strokeBorder(.white.opacity(0.24), lineWidth: 0.7)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 5)
+        .padding(.bottom, 4)
     }
 
     private func tabButton(_ item: AlbumTab) -> some View {
@@ -467,5 +477,15 @@ struct ContentView: View {
             Text(title).font(.system(size: 17, weight: .semibold, design: .serif))
             Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }.frame(maxWidth: .infinity).padding(32).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+struct AlbumScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
+            content
+        }
     }
 }
