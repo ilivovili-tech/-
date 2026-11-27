@@ -7,6 +7,8 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     @Published private(set) var authorization: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @Published private(set) var assets: [PHAsset] = []
     @Published private(set) var albums: [PHAssetCollection] = []
+    @Published private(set) var photoCount = 0
+    @Published private(set) var videoCount = 0
     @Published var selectedAsset: PHAsset?
     private let manager = PHCachingImageManager()
 
@@ -25,9 +27,6 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
         }
     }
 
-    var photoCount: Int { assets.filter { $0.mediaType == .image }.count }
-    var videoCount: Int { assets.filter { $0.mediaType == .video }.count }
-
     func requestAccess() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorization = status
@@ -36,7 +35,14 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
 
     func refresh() {
         authorization = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        if authorization == .authorized || authorization == .limited { loadLibrary() }
+        if authorization == .authorized || authorization == .limited {
+            loadLibrary()
+        } else {
+            assets = []
+            albums = []
+            photoCount = 0
+            videoCount = 0
+        }
     }
 
     private func loadLibrary() {
@@ -44,8 +50,16 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let result = PHAsset.fetchAssets(with: options)
         var items: [PHAsset] = []
-        result.enumerateObjects { asset, _, _ in items.append(asset) }
+        var photos = 0
+        var videos = 0
+        result.enumerateObjects { asset, _, _ in
+            items.append(asset)
+            if asset.mediaType == .image { photos += 1 }
+            else if asset.mediaType == .video { videos += 1 }
+        }
         assets = items
+        photoCount = photos
+        videoCount = videos
 
         let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
         var found: [PHAssetCollection] = []
