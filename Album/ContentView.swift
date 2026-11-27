@@ -369,7 +369,7 @@ struct ContentView: View {
         .overlay(alignment: .top) {
             Rectangle().fill(ink.opacity(0.07)).frame(height: 1)
         }
-        .background(.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
+        .background { Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom) }
     }
 
     private func tabButton(_ item: AlbumTab) -> some View {
