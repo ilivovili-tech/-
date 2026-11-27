@@ -72,7 +72,6 @@ struct PhotoDetailView: View {
                         } else if isLivePhoto && livePhotoLoadingFailed {
                             ZStack(alignment: .bottom) {
                                 PhotoDetailImageView(asset: asset)
-                                .id(asset.localIdentifier)
                                     .id(asset.localIdentifier)
                                 Button {
                                     livePhotoLoaded = false
@@ -90,6 +89,7 @@ struct PhotoDetailView: View {
                             }
                         } else {
                             PhotoDetailImageView(asset: asset)
+                                .id(asset.localIdentifier)
                         }
                     }
                     .frame(maxWidth: .infinity)
