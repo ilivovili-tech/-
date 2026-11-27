@@ -191,9 +191,10 @@ struct OrganizerView: View {
         .onChange(of: library.assets.map(\.localIdentifier)) { _, identifiers in
             selectedIDs.formIntersection(Set(identifiers))
         }
-        .sheet(isPresented: $showDetail) {
+        .fullScreenCover(isPresented: $showDetail) {
             if let activeAsset {
-                PhotoDetailView(asset: activeAsset).environmentObject(library)
+                PhotoDetailView(asset: activeAsset)
+                    .environmentObject(library)
             }
         }
         .confirmationDialog("删除选中的 \(selectedIDs.count) 个项目？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
