@@ -346,7 +346,25 @@ struct ContentView: View {
                 if matches.isEmpty {
                     emptyState("今天还没有往年记忆", subtitle: "当你积累更多照片，这里会出现同一天的珍贵瞬间。", icon: "sparkles")
                 } else {
-                    photoGrid(matches)
+                    let memoriesByYear = Dictionary(grouping: matches) { asset in
+                        Calendar.current.component(.year, from: asset.creationDate ?? Date.distantPast)
+                    }
+                    ForEach(memoriesByYear.keys.sorted(by: >), id: \.self) { year in
+                        let yearAssets = memoriesByYear[year] ?? []
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("\(year) 年的今天")
+                                    .font(.system(size: 17, weight: .semibold, design: .serif))
+                                Spacer()
+                                Text("\(yearAssets.count) 张回忆")
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            photoGrid(yearAssets)
+                        }
+                        .padding(14)
+                        .background(.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
                 }
                 Text("每一张照片，都是时间寄来的明信片。")
                     .font(.system(size: 15, weight: .medium, design: .serif)).foregroundStyle(.secondary)
