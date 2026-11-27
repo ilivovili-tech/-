@@ -11,6 +11,7 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     @Published private(set) var videoCount = 0
     private var assetsByYear: [Int: [PHAsset]] = [:]
     private var assetsByYearAndMonth: [Int: [Int: [PHAsset]]] = [:]
+    private var albumFetchResults: [String: PHFetchResult<PHAsset>] = [:]
     @Published var selectedAsset: PHAsset?
     private let manager = PHCachingImageManager()
 
@@ -55,6 +56,7 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
         videoCount = 0
         assetsByYear = [:]
         assetsByYearAndMonth = [:]
+        albumFetchResults = [:]
     }
 
     private func loadLibrary() {
@@ -89,8 +91,15 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
 
         let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
         var found: [PHAssetCollection] = []
-        collections.enumerateObjects { collection, _, _ in found.append(collection) }
+        var fetchResults: [String: PHFetchResult<PHAsset>] = [:]
+        collections.enumerateObjects { collection, _, _ in
+            found.append(collection)
+            let albumOptions = PHFetchOptions()
+            albumOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            fetchResults[collection.localIdentifier] = PHAsset.fetchAssets(in: collection, options: albumOptions)
+        }
         albums = found
+        albumFetchResults = fetchResults
     }
 
     func image(for asset: PHAsset, size: CGSize, completion: @escaping (UIImage?) -> Void) {
@@ -111,12 +120,18 @@ final class PhotoLibraryStore: NSObject, ObservableObject, PHPhotoLibraryChangeO
     }
 
     func assets(in album: PHAssetCollection) -> [PHAsset] {
-        let options = PHFetchOptions()
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let result = PHAsset.fetchAssets(in: album, options: options)
+        guard let result = albumFetchResults[album.localIdentifier] else { return [] }
         var items: [PHAsset] = []
         result.enumerateObjects { asset, _, _ in items.append(asset) }
         return items
+    }
+
+    func assetCount(in album: PHAssetCollection) -> Int {
+        albumFetchResults[album.localIdentifier]?.count ?? 0
+    }
+
+    func coverAsset(in album: PHAssetCollection) -> PHAsset? {
+        albumFetchResults[album.localIdentifier]?.firstObject
     }
 
     func createAlbum(named title: String) async throws {
