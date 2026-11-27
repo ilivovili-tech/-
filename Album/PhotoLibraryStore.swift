@@ -3,12 +3,22 @@ import Photos
 import UIKit
 
 @MainActor
-final class PhotoLibraryStore: ObservableObject {
+final class PhotoLibraryStore: ObservableObject, PHPhotoLibraryChangeObserver {
     @Published private(set) var authorization: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     @Published private(set) var assets: [PHAsset] = []
     @Published private(set) var albums: [PHAssetCollection] = []
     @Published var selectedAsset: PHAsset?
     private let manager = PHCachingImageManager()
+
+    init() {
+        PHPhotoLibrary.shared().register(self)
+    }
+
+    nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
+        Task { @MainActor [weak self] in
+            self?.refresh()
+        }
+    }
 
     var photoCount: Int { assets.filter { $0.mediaType == .image }.count }
     var videoCount: Int { assets.filter { $0.mediaType == .video }.count }
