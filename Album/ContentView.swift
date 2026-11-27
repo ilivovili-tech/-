@@ -160,6 +160,7 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
+        .modifier(AlbumScrollEdgeEffect())
     }
 
     private var yearBook: some View {
@@ -332,6 +333,7 @@ struct ContentView: View {
                 } else { permissionCard }
             }.padding(20)
         }
+        .modifier(AlbumScrollEdgeEffect())
     }
 
     private var memoriesPage: some View {
@@ -373,6 +375,7 @@ struct ContentView: View {
                     .padding(.vertical, 22)
             }.padding(20)
         }
+        .modifier(AlbumScrollEdgeEffect())
     }
 
     private var organizePage: some View {
