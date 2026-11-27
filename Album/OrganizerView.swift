@@ -5,6 +5,7 @@ private enum OrganizerFilter: String, CaseIterable {
     case nearby = "时间相近"
     case videos = "视频"
     case bursts = "连拍"
+    case screenshots = "截屏"
 }
 
 private enum OrganizerSort: String, CaseIterable {
@@ -28,6 +29,8 @@ struct OrganizerView: View {
             return library.assets.filter { $0.mediaType == .video }
         case .bursts:
             return library.assets.filter { $0.burstIdentifier != nil }
+        case .screenshots:
+            return library.assets.filter { $0.mediaSubtypes.contains(.photoScreenshot) }
         case .nearby:
             let dated = library.assets.enumerated().compactMap { index, asset -> PHAsset? in
                 guard let date = asset.creationDate else { return nil }
@@ -66,7 +69,7 @@ struct OrganizerView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("整理你的图库").font(.system(size: 23, weight: .bold, design: .serif))
-                Text("右滑或长按照片加入待删除列表；确认前不会删除任何内容。")
+                Text("按拍摄时间、视频、连拍和截屏整理。右滑或长按可暂存，确认前不会删除。")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 Picker("分类", selection: $filter) {
                     ForEach(OrganizerFilter.allCases, id: \.self) { item in
@@ -220,6 +223,7 @@ struct OrganizerView: View {
         case .nearby: return "没有发现时间相近的照片"
         case .videos: return "还没有视频"
         case .bursts: return "没有连拍照片"
+        case .screenshots: return "没有截屏照片"
         }
     }
 
@@ -228,6 +232,7 @@ struct OrganizerView: View {
         case .nearby: return "clock"
         case .videos: return "video"
         case .bursts: return "square.stack.3d.up"
+        case .screenshots: return "viewfinder"
         }
     }
 
@@ -236,6 +241,7 @@ struct OrganizerView: View {
         case .nearby: return "拍摄时间相近的照片会出现在这里，方便你一起检查。"
         case .videos: return "图库中的视频会集中显示在这里。"
         case .bursts: return "系统识别到的连拍照片会显示在这里。"
+        case .screenshots: return "从照片图库中集中查看截屏，方便清理过期内容。"
         }
     }
 
