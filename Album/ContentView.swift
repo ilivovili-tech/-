@@ -288,15 +288,7 @@ struct ContentView: View {
     }
 
     private var organizePage: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                organizeRow("相似照片", detail: "按拍摄时间相近的照片辅助整理", icon: "square.on.square")
-                organizeRow("视频与连拍", detail: "快速筛选视频和连拍内容", icon: "rectangle.stack")
-                organizeRow("待整理照片", detail: "先预览，再决定是否移至最近删除", icon: "tray")
-                Text("提示：当前版本以时间和媒体类型分类，不会自动判断照片内容是否相同。")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 8)
-            }.padding(20)
-        }
+        OrganizerView().environmentObject(library)
     }
 
     private var tabBar: some View {
